@@ -385,8 +385,16 @@ impl Cedar {
         child
     }
 
-    fn find_place(&self) -> i32 {
-        unimplemented!();
+    fn find_place(&mut self) -> i32 {
+        if self.blocks_head_closed != 0 {
+            return self.blocks[self.blocks_head_closed as usize].e_head;
+        }
+
+        if self.blocks_head_open != 0 {
+            return self.blocks[self.blocks_head_open as usize].e_head;
+        }
+
+        self.add_block() << 8
     }
 
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
