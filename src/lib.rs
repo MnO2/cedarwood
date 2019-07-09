@@ -10,6 +10,12 @@ struct Node {
     check: i32,
 }
 
+impl Node {
+    fn base(&self) -> i32 {
+        -(self.value + 1)
+    }
+}
+
 #[derive(Default, Clone)]
 struct Block {
     prev: i32,
@@ -81,5 +87,66 @@ impl Cedar {
             ordered: true,
             max_trial: 1,
         }
+    }
+
+    fn get(&mut self, key: Vec<u8>, mut from: i32, pos: i32) -> i32 {
+        let n = key.len();
+        let start = pos as usize;
+        let mut to: i32;
+        for i in start..n {
+            let value = self.array[from as usize].value;
+
+            if value >= 0 && value < std::i32::MAX {
+                let to = self.follow(from, 0);
+                self.array[to as usize].value = value;
+            }
+
+            from = self.follow(from, key[i]);
+        }
+
+        to = from;
+        if self.array[from as usize].value < 0 {
+            to = self.follow(from, 0);
+        }
+
+        self.array[to as usize].value
+    }
+
+    fn follow(&self, from: i32, label: u8) -> i32 {
+        let base = self.array[from as usize].base();
+        let mut to = base ^ (label as i32);
+
+        if base < 0 || self.array[to as usize].check < 0 {
+            let mut has_child = false;
+            if base >= 0 {
+                let branch: i32 = base ^ (self.n_infos[from as usize].child as i32);
+                has_child = (self.array[branch as usize].check == from)
+            }
+
+            to = self.pop_e_node(base, label, from);
+
+            let branch: i32 = base ^ (label as i32);
+            self.push_sibling(from, branch, label, has_child);
+        } else if self.array[to as usize].check != from {
+            to = self.resolve(from, base, label);
+        } else if self.array[to as usize].check == from {
+            // skip
+        } else {
+            unreachable!();
+        }
+
+        to
+    }
+
+    fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
+        unimplemented!();
+    }
+
+    fn push_sibling(&self, from: i32, base: i32, label: u8, has_child: bool) {
+        unimplemented!();
+    }
+
+    fn pop_e_node(&self, base: i32, label: u8, from: i32) -> i32 {
+        unimplemented!();
     }
 }
