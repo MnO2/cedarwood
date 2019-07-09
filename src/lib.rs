@@ -138,6 +138,36 @@ impl Cedar {
         to
     }
 
+    fn pop_block(&mut self, idx: i32, head: &mut i32, last: bool) {
+        if last {
+            *head = 0;
+        } else {
+            let b = self.blocks[idx as usize].clone();
+            self.blocks[b.prev as usize].next = b.next;
+            self.blocks[b.next as usize].prev = b.prev;
+
+            if idx == *head {
+                *head = b.next;
+            }
+        }
+    }
+
+    fn push_block(&mut self, idx: i32, head: &mut i32, empty: bool) {
+        if empty {
+            *head = idx;
+            self.blocks[idx as usize].prev = idx;
+            self.blocks[idx as usize].next = idx;
+        } else {
+            self.blocks[idx as usize].prev = self.blocks[*head as usize].prev;
+            self.blocks[idx as usize].next = *head;
+            *head = idx;
+
+            let t = self.blocks[*head as usize].prev;
+            self.blocks[*head as usize].prev = idx;
+            self.blocks[t as usize].next = idx;
+        }
+    }
+
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
