@@ -346,6 +346,18 @@ impl Cedar {
         }
     }
 
+    fn consult(&self, base_n: i32, base_p: i32, mut c_n: u8, mut c_p: u8) -> bool {
+        c_n = self.n_infos[(base_n ^ (c_n as i32)) as usize].sibling;
+        c_p = self.n_infos[(base_p ^ (c_p as i32)) as usize].sibling;
+
+        while c_n != 0 && c_p != 0 {
+            c_n = self.n_infos[(base_n ^ (c_n as i32)) as usize].sibling;
+            c_p = self.n_infos[(base_p ^ (c_p as i32)) as usize].sibling;
+        }
+
+        c_p != 0
+    }
+
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
