@@ -308,11 +308,45 @@ impl Cedar {
         self.n_infos[e as usize] = Default::default();
     }
 
-    fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
-        unimplemented!();
+    fn push_sibling(&mut self, from: i32, base: i32, label: u8, has_child: bool) {
+        let mut keep_order = (self.n_infos[from as usize].child == 0);
+        if self.ordered {
+            keep_order = (label > self.n_infos[from as usize].child);
+        }
+
+        let sibling: u8;
+        {
+            let mut c: &mut u8 = &mut self.n_infos[from as usize].child;
+            if has_child && keep_order {
+                let code = (*c as i32);
+                c = &mut self.n_infos[(base ^ code) as usize].sibling;
+
+                while self.ordered && (*c != 0) && (*c < label) {
+                    let code = (*c as i32);
+                    c = &mut self.n_infos[(base ^ code) as usize].sibling;
+                }
+            }
+            sibling = *c;
+            *c = label;
+        }
+
+        self.n_infos[(base ^ (label as i32)) as usize].sibling = sibling;
     }
 
-    fn push_sibling(&self, from: i32, base: i32, label: u8, has_child: bool) {
+    fn pop_sibling(&mut self, from: i32, base: i32, label: u8) {
+        let mut c: (*mut u8) = &mut self.n_infos[from as usize].child;
+        unsafe {
+            while *c != label {
+                let code = (*c as i32);
+                c = &mut self.n_infos[(base ^ code) as usize].sibling;
+            }
+
+            let code = (*c as i32);
+            *c = self.n_infos[(base ^ code) as usize].sibling;
+        }
+    }
+
+    fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
 
