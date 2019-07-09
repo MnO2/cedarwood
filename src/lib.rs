@@ -268,6 +268,46 @@ impl Cedar {
         e
     }
 
+    fn push_e_node(&mut self, e: i32) {
+        let idx = e >> 8;
+        self.blocks[idx as usize].num += 1;
+
+        if self.blocks[idx as usize].num == 1 {
+            self.blocks[idx as usize].e_head = e;
+            self.array[e as usize] = Node { value: -e, check: -e };
+
+            if idx != 0 {
+                self.transfer_block(idx, BlockType::Full, BlockType::Closed, self.blocks_head_closed == 0);
+            }
+        } else {
+            let prev = self.blocks[idx as usize].e_head;
+
+            let next = -self.array[prev as usize].check;
+
+            self.array[e as usize] = Node {
+                value: -prev,
+                check: -next,
+            };
+
+            self.array[prev as usize].check = -e;
+            self.array[next as usize].value = -e;
+
+            if self.blocks[idx as usize].num == 2 || self.blocks[idx as usize].trial == self.max_trial {
+                if idx != 0 {
+                    self.transfer_block(idx, BlockType::Closed, BlockType::Open, self.blocks_head_open == 0);
+                }
+            }
+
+            self.blocks[idx as usize].trial = 0;
+        }
+
+        if self.blocks[idx as usize].reject < self.reject[self.blocks[idx as usize].num as usize] {
+            self.blocks[idx as usize].reject = self.reject[self.blocks[idx as usize].num as usize];
+        }
+
+        self.n_infos[e as usize] = Default::default();
+    }
+
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
