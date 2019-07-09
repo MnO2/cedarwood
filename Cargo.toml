@@ -1,0 +1,13 @@
+[package]
+name = "rust-cedar"
+description = "efficiently-updatable double-array trie in Rust (ported from cedar)"
+repository = "https://github.com/MnO2/rust-cedar"
+version = "0.1.0"
+license = "MIT"
+authors = ["Paul Meng <me@paulme.ng>"]
+readme = "README.md"
+keywords = ["trie", "darts", "string", "search", "text"]
+categories = ["data-structures", "text-processing"]
+edition = "2018"
+
+[dependencies]
