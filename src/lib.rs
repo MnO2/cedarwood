@@ -39,6 +39,12 @@ impl Block {
     }
 }
 
+enum BlockType {
+    Open,
+    Closed,
+    Full,
+}
+
 pub struct Cedar {
     array: Vec<Node>,
     n_infos: Vec<NInfo>,
@@ -47,8 +53,8 @@ pub struct Cedar {
     blocks_head_full: i32,
     blocks_head_closed: i32,
     blocks_head_open: i32,
-    capacity: i32,
-    size: i32,
+    capacity: usize,
+    size: usize,
     ordered: bool,
     max_trial: i32,
 }
@@ -138,7 +144,13 @@ impl Cedar {
         to
     }
 
-    fn pop_block(&mut self, idx: i32, head: &mut i32, last: bool) {
+    fn pop_block(&mut self, idx: i32, from: BlockType, last: bool) {
+        let head: &mut i32 = match from {
+            BlockType::Open => &mut self.blocks_head_open,
+            BlockType::Closed => &mut self.blocks_head_closed,
+            BlockType::Full => &mut self.blocks_head_full,
+        };
+
         if last {
             *head = 0;
         } else {
@@ -152,7 +164,13 @@ impl Cedar {
         }
     }
 
-    fn push_block(&mut self, idx: i32, head: &mut i32, empty: bool) {
+    fn push_block(&mut self, idx: i32, to: BlockType, empty: bool) {
+        let head: &mut i32 = match to {
+            BlockType::Open => &mut self.blocks_head_open,
+            BlockType::Closed => &mut self.blocks_head_closed,
+            BlockType::Full => &mut self.blocks_head_full,
+        };
+
         if empty {
             *head = idx;
             self.blocks[idx as usize].prev = idx;
@@ -166,6 +184,43 @@ impl Cedar {
             self.blocks[*head as usize].prev = idx;
             self.blocks[t as usize].next = idx;
         }
+    }
+
+    fn add_block(&mut self) -> i32 {
+        if self.size == self.capacity {
+            self.capacity *= 2;
+
+            self.array.resize(self.capacity, Default::default());
+            self.n_infos.resize(self.capacity, Default::default());
+            self.blocks.resize(self.capacity >> 8, Default::default());
+        }
+
+        self.blocks[self.size >> 8] = Block::new();
+        self.blocks[self.size >> 8].e_head = self.size as i32;
+
+        self.array[self.size] = Node {
+            value: -((self.size as i32) + 255),
+            check: -((self.size as i32) + 1),
+        };
+
+        for i in (self.size + 1)..(self.size + 255) {
+            self.array[i] = Node {
+                value: -(i as i32 - 1),
+                check: -(i as i32 + 1),
+            };
+        }
+
+        self.array[self.size + 255] = Node {
+            value: -((self.size as i32) + 254),
+            check: -(self.size as i32),
+        };
+
+        let is_empty = (self.blocks_head_open == 0);
+        let idx = (self.size >> 8) as i32;
+        self.push_block(idx, BlockType::Open, is_empty);
+        self.size += 256;
+
+        ((self.size >> 8) - 1) as i32
     }
 
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
