@@ -118,7 +118,7 @@ impl Cedar {
         self.array[to as usize].value
     }
 
-    fn follow(&self, from: i32, label: u8) -> i32 {
+    fn follow(&mut self, from: i32, label: u8) -> i32 {
         let base = self.array[from as usize].base();
         let mut to = base ^ (label as i32);
 
@@ -223,6 +223,51 @@ impl Cedar {
         ((self.size >> 8) - 1) as i32
     }
 
+    fn transfer_block(&mut self, idx: i32, from: BlockType, to: BlockType, to_block_empty: bool) {
+        let is_last = (idx == self.blocks[idx as usize].next);
+        let is_empty = to_block_empty && (self.blocks[idx as usize].num != 0);
+
+        self.pop_block(idx, from, is_empty);
+        self.push_block(idx, to, is_last);
+    }
+
+    fn pop_e_node(&mut self, base: i32, label: u8, from: i32) -> i32 {
+        let mut e = base ^ (label as i32);
+        if base < 0 {
+            e = self.find_place();
+        }
+
+        let idx = e >> 8;
+        let n = self.array[e as usize].clone();
+        self.blocks[idx as usize].num -= 1;
+
+        if self.blocks[idx as usize].num == 0 {
+            if idx != 0 {
+                self.transfer_block(idx, BlockType::Closed, BlockType::Full, self.blocks_head_full == 0);
+            }
+        } else {
+            self.array[(-n.value) as usize].check = n.check;
+            self.array[(-n.check) as usize].value = n.value;
+
+            if e == self.blocks[idx as usize].e_head {
+                self.blocks[idx as usize].e_head = -n.check;
+            }
+
+            if idx != 0 && self.blocks[idx as usize].num == 1 && self.blocks[idx as usize].trial != self.max_trial {
+                self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
+            }
+        }
+
+        self.array[e as usize].value = std::i32::MAX;
+        self.array[e as usize].check = from;
+
+        if base < 0 {
+            self.array[from as usize].value = -(e ^ (label as i32)) - 1;
+        }
+
+        e
+    }
+
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
@@ -231,7 +276,7 @@ impl Cedar {
         unimplemented!();
     }
 
-    fn pop_e_node(&self, base: i32, label: u8, from: i32) -> i32 {
+    fn find_place(&self) -> i32 {
         unimplemented!();
     }
 }
