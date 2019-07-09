@@ -358,11 +358,38 @@ impl Cedar {
         c_p != 0
     }
 
-    fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
-        unimplemented!();
+    fn set_child(&self, base: i32, mut c: u8, label: u8, flag: bool) -> Vec<u8> {
+        let mut child: Vec<u8> = (0..257).map(|i| 0).collect();
+
+        if c == 0 {
+            child.push(c);
+            c = self.n_infos[(base ^ (c as i32)) as usize].sibling;
+        }
+
+        if self.ordered {
+            while c != 0 && c <= label {
+                child.push(c);
+                c = self.n_infos[(base ^ (c as i32)) as usize].sibling;
+            }
+        }
+
+        if flag {
+            child.push(label);
+        }
+
+        while c != 0 {
+            child.push(c);
+            c = self.n_infos[(base ^ (c as i32)) as usize].sibling;
+        }
+
+        child
     }
 
     fn find_place(&self) -> i32 {
+        unimplemented!();
+    }
+
+    fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
 }
