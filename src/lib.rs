@@ -95,6 +95,59 @@ impl Cedar {
         }
     }
 
+    fn jump(&self, path: &Vec<u8>, mut from: i32) -> Option<i32> {
+        let mut to = 0;
+        for &b in path {
+            if self.array[from as usize].value >= 0 {
+                return None;
+            }
+
+            to = self.array[from as usize].base() ^ (b as i32);
+            if self.array[to as usize].check != from {
+                return None;
+            }
+
+            from = to;
+        }
+
+        return Some(to);
+    }
+
+    pub fn value(&self, id: i32) -> Option<i32> {
+        let value = self.array[id as usize].value;
+        if value >= 0 {
+            return Some(value);
+        }
+
+        let to = self.array[id as usize].base();
+        if self.array[to as usize].check == id && self.array[to as usize].value >= 0 {
+            return Some(self.array[to as usize].value);
+        }
+
+        return None;
+    }
+
+    pub fn prefix_match(&self, key: &Vec<u8>, mut num: i32) -> Vec<i32> {
+        let mut from = 0;
+        let mut ids: Vec<i32> = Vec::new();
+        for i in 0..(key.len()) {
+            if let Some(to) = self.jump(&key[i..(i + 1)].to_vec(), from) {
+                if self.value(to).is_some() {
+                    ids.push(to);
+                    num -= 1;
+                    if num == 0 {
+                        return ids;
+                    }
+                }
+
+                from = to;
+            } else {
+                break;
+            }
+        }
+        return ids;
+    }
+
     fn get(&mut self, key: Vec<u8>, mut from: i32, pos: i32) -> i32 {
         let n = key.len();
         let start = pos as usize;
