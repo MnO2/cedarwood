@@ -219,6 +219,17 @@ impl Cedar {
         unimplemented!();
     }
 
+    pub fn exact_match_search(&self, key: &str) -> Option<(i32, usize, usize)> {
+        let key = key.as_bytes();
+        let mut from = 0;
+
+        if let Some(value) = self.find(&key, &mut from) {
+            return Some((value, key.len(), from));
+        } else {
+            return None;
+        }
+    }
+
     pub fn common_prefix_search(&self, key: &str) -> Vec<(i32, usize, usize)> {
         let key = key.as_bytes();
         let mut from: usize = 0;
@@ -827,5 +838,16 @@ mod tests {
 
         let result: Vec<i32> = cedar.common_prefix_predict("a").iter().map(|x| x.0).collect();
         assert_eq!(vec![0, 1, 2], result);
+    }
+
+    #[test]
+    fn test_exact_match_search() {
+        let dict = vec!["a", "ab", "abc"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        let result = cedar.exact_match_search("abc").map(|x| x.0);
+        assert_eq!(Some(2), result);
     }
 }
