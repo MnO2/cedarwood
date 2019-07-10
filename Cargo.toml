@@ -10,4 +10,8 @@ keywords = ["trie", "darts", "string", "search", "text"]
 categories = ["data-structures", "text-processing"]
 edition = "2018"
 
+[features]
+default = []
+reduced-trie = []
+
 [dependencies]

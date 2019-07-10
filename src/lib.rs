@@ -1,10 +1,10 @@
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 struct NInfo {
     sibling: u8, // the index of right sibling, it is 0 if it doesn't have a sibling.
     child: u8,   // the index of the first child
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 struct Node {
     base_: i32, // if it is a negative value, then it stores the value of previous index that is free.
     check: i32, // if it is a negative value, then it stores the value of next index that is free.
@@ -13,13 +13,13 @@ struct Node {
 impl Node {
     fn base(&self) -> i32 {
         #[cfg(feature = "reduced-trie")]
-        -(self.base_ + 1);
+        return -(self.base_ + 1);
         #[cfg(not(feature = "reduced-trie"))]
-        self.base_
+        return self.base_;
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Block {
     prev: i32, // previous block's index, 3 bytes width
     next: i32, // next block's index, 3 bytes width
@@ -63,8 +63,8 @@ pub struct Cedar {
 }
 
 #[allow(dead_code)]
-const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX;
-const CEDAR_NO_VALUE: i32 = std::i32::MAX;
+const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 5;
+const CEDAR_NO_VALUE: i32 = std::i32::MAX - 5;
 
 impl Cedar {
     pub fn new() -> Self {
@@ -131,7 +131,7 @@ impl Cedar {
                 let val_ = self.array[from].base_;
                 if val_ >= 0 && val_ != CEDAR_VALUE_LIMIT {
                     let to = self.follow(from, 0);
-                    self.array[to].base_ = val_;
+                    self.array[to as usize].base_ = val_;
                 }
             }
 
@@ -176,27 +176,30 @@ impl Cedar {
     fn find(&self, key: &[u8], from: &mut usize) -> Option<i32> {
         #[allow(unused_assignments)]
         let mut to: usize = 0;
-        for pos in 0..key.len() {
+        let mut pos = 0;
+
+        while pos < key.len() {
             #[cfg(feature = "reduced-trie")]
             {
-                if self.array[from as usize].base_ >= 0 {
+                if self.array[*from].base_ >= 0 {
                     break;
                 }
             }
 
-            to = (self.array[*from as usize].base() ^ (key[pos] as i32)) as usize;
+            to = (self.array[*from].base() ^ (key[pos] as i32)) as usize;
             if self.array[to as usize].check != (*from as i32) {
                 return None;
             }
 
             *from = to;
+            pos += 1;
         }
 
         #[cfg(feature = "reduced-trie")]
         {
-            if self.array[from].value >= 0 {
-                if pos == len {
-                    return Some(self.array[from].base_);
+            if self.array[*from].base_ >= 0 {
+                if pos == key.len() {
+                    return Some(self.array[*from].base_);
                 } else {
                     return None;
                 }
@@ -215,8 +218,43 @@ impl Cedar {
         self.erase_(key.as_bytes())
     }
 
-    fn erase_(&mut self, _key: &[u8]) {
-        unimplemented!();
+    fn erase_(&mut self, key: &[u8]) {
+        let mut from = 0;
+
+        if self.find(&key, &mut from).is_some() {
+            self.erase__(from);
+        }
+    }
+
+    fn erase__(&mut self, mut from: usize) {
+        #[cfg(feature = "reduced-trie")]
+        let mut e: i32 = if self.array[from].base_ >= 0 {
+            from as i32
+        } else {
+            self.array[from].base() ^ 0
+        };
+        from = self.array[e as usize].check as usize;
+        #[cfg(not(feature = "reduced-trie"))]
+        let mut e = self.array[from].base() ^ 0;
+
+        #[allow(unused_assignments)]
+        let mut has_sibling = false;
+        loop {
+            let n = self.array[from].clone();
+            has_sibling = self.n_infos[(n.base() ^ (self.n_infos[from].child as i32)) as usize].sibling != 0;
+
+            if has_sibling {
+                self.pop_sibling(from as i32, n.base(), (n.base() ^ e) as u8);
+            }
+
+            self.push_e_node(e);
+            e = from as i32;
+            from = self.array[from].check as usize;
+
+            if has_sibling {
+                break;
+            }
+        }
     }
 
     pub fn exact_match_search(&self, key: &str) -> Option<(i32, usize, usize)> {
@@ -300,7 +338,7 @@ impl Cedar {
         #[cfg(feature = "reduced-trie")]
         {
             if self.array[from].base_ >= 0 {
-                return self.array[from].base_;
+                return (Some(self.array[from].base_), from, p);
             }
         }
 
