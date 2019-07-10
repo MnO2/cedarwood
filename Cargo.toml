@@ -1,5 +1,5 @@
 [package]
-name = "rust-cedar"
+name = "cedar"
 description = "efficiently-updatable double-array trie in Rust (ported from cedar)"
 repository = "https://github.com/MnO2/rust-cedar"
 version = "0.1.0"
@@ -10,8 +10,20 @@ keywords = ["trie", "darts", "string", "search", "text"]
 categories = ["data-structures", "text-processing"]
 edition = "2018"
 
+[badges]
+travis-ci = { repository = "MnO2/rust-cedar" }
+codecov = { repository = "MnO2/rust-cedar" }
+
 [features]
 default = []
 reduced-trie = []
+
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "cedar_benchmark"
+harness = false
+required-features = []
 
 [dependencies]
