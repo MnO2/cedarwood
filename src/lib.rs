@@ -66,6 +66,40 @@ pub struct Cedar {
 const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 5;
 const CEDAR_NO_VALUE: i32 = std::i32::MAX - 5;
 
+pub struct PrefixIter<'a> {
+    cedar: &'a Cedar,
+    key: &'a [u8],
+    from: usize,
+    i: usize,
+}
+
+impl<'a> Iterator for PrefixIter<'a> {
+    type Item = (i32, usize, usize);
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.key.len()))
+    }
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.i < self.key.len() {
+            if let Some(value) = self.cedar.find(&self.key[self.i..self.i + 1], &mut self.from) {
+                if value == CEDAR_NO_VALUE {
+                    self.i += 1;
+                    continue;
+                } else {
+                    let result = Some((value, self.i, self.from));
+                    self.i += 1;
+                    return result;
+                }
+            } else {
+                break;
+            }
+        }
+
+        return None;
+    }
+}
+
 impl Cedar {
     pub fn new() -> Self {
         let mut array: Vec<Node> = Vec::with_capacity(256);
@@ -270,6 +304,17 @@ impl Cedar {
             return Some((value, key.len(), from));
         } else {
             return None;
+        }
+    }
+
+    pub fn common_prefix_iter<'a>(&'a self, key: &'a str) -> PrefixIter<'a> {
+        let key = key.as_bytes();
+
+        PrefixIter {
+            cedar: self,
+            key: key,
+            from: 0,
+            i: 0,
         }
     }
 
@@ -895,6 +940,44 @@ mod tests {
         let result: Vec<i32> = cedar
             .common_prefix_search("データ構造とアルゴリズム")
             .iter()
+            .map(|x| x.0)
+            .collect();
+        assert_eq!(vec![4], result);
+    }
+
+    #[test]
+    fn test_common_prefix_iter() {
+        let dict = vec![
+            "a",
+            "ab",
+            "abc",
+            "アルゴリズム",
+            "データ",
+            "構造",
+            "网",
+            "网球",
+            "网球拍",
+            "中",
+            "中华",
+            "中华人民",
+            "中华人民共和国",
+        ];
+
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        let result: Vec<i32> = cedar.common_prefix_iter("abcdefg").map(|x| x.0).collect();
+        assert_eq!(vec![0, 1, 2], result);
+
+        let result: Vec<i32> = cedar.common_prefix_iter("网球拍卖会").map(|x| x.0).collect();
+        assert_eq!(vec![6, 7, 8], result);
+
+        let result: Vec<i32> = cedar.common_prefix_iter("中华人民共和国").map(|x| x.0).collect();
+        assert_eq!(vec![9, 10, 11, 12], result);
+
+        let result: Vec<i32> = cedar
+            .common_prefix_iter("データ構造とアルゴリズム")
             .map(|x| x.0)
             .collect();
         assert_eq!(vec![4], result);
