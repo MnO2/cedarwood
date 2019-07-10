@@ -1,3 +1,63 @@
+//!  Efficiently-updatable double-array trie in Rust (ported from cedar).
+//!
+//! Add it to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! cedar = "0.1"
+//! ```
+//!
+//! then you are good to go. If you are using Rust 2015 you have to `extern crate darts` to your crate root as well.
+//!
+//! ## Example
+//!
+//! ```rust
+//! use cedar::Cedar;
+//!
+//! let dict = vec![
+//!     "a",
+//!     "ab",
+//!     "abc",
+//!     "アルゴリズム",
+//!     "データ",
+//!     "構造",
+//!     "网",
+//!     "网球",
+//!     "网球拍",
+//!     "中",
+//!     "中华",
+//!     "中华人民",
+//!     "中华人民共和国",
+//! ];
+//! let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+//! let mut cedar = Cedar::new();
+//! cedar.build(&key_values);
+//!
+//! let result: Vec<i32> = cedar.common_prefix_search("abcdefg").iter().map(|x| x.0).collect();
+//! assert_eq!(vec![0, 1, 2], result);
+//!
+//! let result: Vec<i32> = cedar
+//!     .common_prefix_search("网球拍卖会")
+//!     .iter()
+//!     .map(|x| x.0)
+//!     .collect();
+//! assert_eq!(vec![6, 7, 8], result);
+//!
+//! let result: Vec<i32> = cedar
+//!     .common_prefix_search("中华人民共和国")
+//!     .iter()
+//!     .map(|x| x.0)
+//!     .collect();
+//! assert_eq!(vec![9, 10, 11, 12], result);
+//!
+//! let result: Vec<i32> = cedar
+//!     .common_prefix_search("データ構造とアルゴリズム")
+//!     .iter()
+//!     .map(|x| x.0)
+//!     .collect();
+//! assert_eq!(vec![4], result);
+//! ```
+
 #[derive(Debug, Default, Clone)]
 struct NInfo {
     sibling: u8, // the index of right sibling, it is 0 if it doesn't have a sibling.
