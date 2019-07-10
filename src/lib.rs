@@ -397,6 +397,56 @@ impl Cedar {
         self.add_block() << 8
     }
 
+    fn find_places(&mut self, child: Vec<u8>) -> i32 {
+        let mut idx = self.blocks_head_open;
+        if idx != 0 {
+            let bz = self.blocks[self.blocks_head_open as usize].prev;
+            let nc = child.len() as i32;
+
+            loop {
+                if self.blocks[idx as usize].num >= nc && nc < self.blocks[idx as usize].reject {
+                    let mut e = self.blocks[idx as usize].e_head;
+                    loop {
+                        let base = e ^ (child[0] as i32);
+
+                        let mut i = 0;
+                        while self.array[(base ^ (child[i] as i32)) as usize].check < 0 {
+                            if i == child.len() - 1 {
+                                self.blocks[idx as usize].e_head = e;
+                                return e;
+                            }
+                            i += 1;
+                        }
+
+                        e = -self.array[e as usize].check;
+                        if e == self.blocks[idx as usize].e_head {
+                            break;
+                        }
+                    }
+
+                    self.blocks[idx as usize].reject = nc;
+                    if self.blocks[idx as usize].reject < self.reject[self.blocks[idx as usize].num as usize] {
+                        self.reject[self.blocks[idx as usize].num as usize] = self.blocks[idx as usize].reject;
+                    }
+
+                    let idx_ = self.blocks[idx as usize].next;
+                    self.blocks[idx as usize].trial += 1;
+                    if self.blocks[idx as usize].trial == self.max_trial {
+                        self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
+                    }
+
+                    if idx == bz {
+                        break;
+                    }
+
+                    idx = idx_;
+                }
+            }
+        }
+
+        self.add_block() << 8
+    }
+
     fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
         unimplemented!();
     }
