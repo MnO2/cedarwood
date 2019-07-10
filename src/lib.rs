@@ -233,7 +233,12 @@ impl Cedar {
         } else {
             self.array[from].base() ^ 0
         };
-        from = self.array[e as usize].check as usize;
+
+        #[cfg(feature = "reduced-trie")]
+        {
+            from = self.array[e as usize].check as usize;
+        }
+
         #[cfg(not(feature = "reduced-trie"))]
         let mut e = self.array[from].base() ^ 0;
 
@@ -851,13 +856,41 @@ mod tests {
 
     #[test]
     fn test_common_prefix_search() {
-        let dict = vec!["a", "ab", "abc", "アルゴリズム", "データ", "構造"];
+        let dict = vec![
+            "a",
+            "ab",
+            "abc",
+            "アルゴリズム",
+            "データ",
+            "構造",
+            "网",
+            "网球",
+            "网球拍",
+            "中",
+            "中华",
+            "中华人民",
+            "中华人民共和国",
+        ];
         let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
         let result: Vec<i32> = cedar.common_prefix_search("abcdefg").iter().map(|x| x.0).collect();
         assert_eq!(vec![0, 1, 2], result);
+
+        let result: Vec<i32> = cedar
+            .common_prefix_search("网球拍卖会")
+            .iter()
+            .map(|x| x.0)
+            .collect();
+        assert_eq!(vec![6, 7, 8], result);
+
+        let result: Vec<i32> = cedar
+            .common_prefix_search("中华人民共和国")
+            .iter()
+            .map(|x| x.0)
+            .collect();
+        assert_eq!(vec![9, 10, 11, 12], result);
 
         let result: Vec<i32> = cedar
             .common_prefix_search("データ構造とアルゴリズム")
