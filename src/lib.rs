@@ -173,7 +173,7 @@ impl Cedar {
     }
 
     // find key from double array trie
-    fn find(&self, key: &[u8], mut from: usize) -> Option<i32> {
+    fn find(&self, key: &[u8], from: &mut usize) -> Option<i32> {
         #[allow(unused_assignments)]
         let mut to: usize = 0;
         for pos in 0..key.len() {
@@ -184,12 +184,12 @@ impl Cedar {
                 }
             }
 
-            to = (self.array[from as usize].base() ^ (key[pos] as i32)) as usize;
-            if self.array[to as usize].check != (from as i32) {
+            to = (self.array[*from as usize].base() ^ (key[pos] as i32)) as usize;
+            if self.array[to as usize].check != (*from as i32) {
                 return None;
             }
 
-            from = to;
+            *from = to;
         }
 
         #[cfg(feature = "reduced-trie")]
@@ -203,8 +203,8 @@ impl Cedar {
             }
         }
 
-        let n = &self.array[(self.array[from].base() ^ 0) as usize];
-        if n.check != (from as i32) {
+        let n = &self.array[(self.array[*from].base() ^ 0) as usize];
+        if n.check != (*from as i32) {
             return Some(CEDAR_NO_VALUE);
         } else {
             return Some(n.base_);
@@ -221,11 +221,11 @@ impl Cedar {
 
     pub fn common_prefix_search(&self, key: &str) -> Vec<(i32, usize, usize)> {
         let key = key.as_bytes();
-        let from: usize = 0;
+        let mut from: usize = 0;
 
         let mut result: Vec<(i32, usize, usize)> = Vec::new();
         for i in 0..(key.len()) {
-            if let Some(value) = self.find(&key[i..i + 1], from) {
+            if let Some(value) = self.find(&key[i..i + 1], &mut from) {
                 if value == CEDAR_NO_VALUE {
                     continue;
                 } else {
@@ -247,7 +247,7 @@ impl Cedar {
         #[allow(unused_assignments)]
         let mut value: Option<i32> = None;
 
-        if self.find(key, 0).is_some() {
+        if self.find(key, &mut from).is_some() {
             let root: usize = from;
 
             let (v_, from_, p_) = self.begin(from, p);
@@ -611,6 +611,7 @@ impl Cedar {
             let nc = child.len() as i16;
 
             loop {
+                //only proceed if the free slots are more than the number of children.
                 if self.blocks[idx as usize].num >= nc && nc < self.blocks[idx as usize].reject {
                     let mut e = self.blocks[idx as usize].e_head;
                     loop {
@@ -639,6 +640,8 @@ impl Cedar {
                     let idx_ = self.blocks[idx as usize].next;
 
                     self.blocks[idx as usize].trial += 1;
+
+                    // move this block to the 'Closed' block list since it has reached the max_trial
                     if self.blocks[idx as usize].trial == self.max_trial {
                         self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
                     }
@@ -647,6 +650,7 @@ impl Cedar {
                         break;
                     }
 
+                    // going to the next in this linked list group
                     idx = idx_;
                 }
             }
