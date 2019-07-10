@@ -239,7 +239,8 @@ impl Cedar {
         return result;
     }
 
-    pub fn common_prefix_predict(&self, key: &Vec<u8>) -> Vec<(i32, usize, usize)> {
+    pub fn common_prefix_predict(&self, key: &str) -> Vec<(i32, usize, usize)> {
+        let key = key.as_bytes();
         let mut result: Vec<(i32, usize, usize)> = Vec::new();
         let mut from = 0;
         let mut p = 0;
@@ -815,5 +816,16 @@ mod tests {
             .map(|x| x.0)
             .collect();
         assert_eq!(vec![4], result);
+    }
+
+    #[test]
+    fn test_common_prefix_predict() {
+        let dict = vec!["a", "ab", "abc"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        let result: Vec<i32> = cedar.common_prefix_predict("a").iter().map(|x| x.0).collect();
+        assert_eq!(vec![0, 1, 2], result);
     }
 }
