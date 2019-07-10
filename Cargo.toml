@@ -9,6 +9,7 @@ readme = "README.md"
 keywords = ["trie", "darts", "string", "search", "text"]
 categories = ["data-structures", "text-processing"]
 edition = "2018"
+exclude = ["/benches/**", "/.travis.yml"]
 
 [badges]
 travis-ci = { repository = "MnO2/rust-cedar" }
