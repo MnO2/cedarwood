@@ -95,7 +95,7 @@ impl Cedar {
         }
     }
 
-    pub fn jump(&self, path: &Vec<u8>, mut from: i32) -> Option<i32> {
+    pub fn jump(&self, path: &[u8], mut from: i32) -> Option<i32> {
         let mut to = 0;
         for &b in path {
             if self.array[from as usize].value >= 0 {
@@ -127,7 +127,7 @@ impl Cedar {
         return None;
     }
 
-    pub fn insert(&mut self, key: &Vec<u8>, value: i32) {
+    pub fn insert(&mut self, key: &[u8], value: i32) {
         let idx = self.get_idx(key, 0, 0);
         self.array[idx as usize].value = value;
     }
@@ -158,7 +158,7 @@ impl Cedar {
         }
     }
 
-    pub fn get(&self, key: &Vec<u8>) -> Option<i32> {
+    pub fn get(&self, key: &[u8]) -> Option<i32> {
         if let Some(to) = self.jump(key, 0) {
             self.value(to)
         } else {
@@ -166,7 +166,7 @@ impl Cedar {
         }
     }
 
-    pub fn prefix_match(&self, key: &Vec<u8>, mut num: i32) -> Vec<i32> {
+    pub fn prefix_match(&self, key: &[u8], mut num: i32) -> Vec<i32> {
         let mut from = 0;
         let mut ids: Vec<i32> = Vec::new();
         for i in 0..(key.len()) {
@@ -242,7 +242,7 @@ impl Cedar {
         return Some(self.begin(from));
     }
 
-    fn get_idx(&mut self, key: &Vec<u8>, mut from: i32, pos: i32) -> i32 {
+    fn get_idx(&mut self, key: &[u8], mut from: i32, pos: i32) -> i32 {
         let n = key.len();
         let start = pos as usize;
         let mut to: i32;
@@ -676,5 +676,28 @@ impl Cedar {
         }
 
         to_pn
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prefix_match() {
+        let dict = vec!["a", "ab", "abc", "アルゴリズム", "データ", "構造"];
+
+        let mut cedar = Cedar::new();
+
+        for (i, w) in dict.iter().enumerate() {
+            cedar.insert(w.as_bytes(), i as i32);
+        }
+
+        let ids = cedar.prefix_match("abcdefg".as_bytes(), 0);
+        assert_eq!(vec![0, 1, 2], ids);
+
+        let ids = cedar.prefix_match("データ構造とアルゴリズム".as_bytes(), 0);
+        assert_eq!(vec![4], ids);
     }
 }
