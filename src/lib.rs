@@ -12,7 +12,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use cedar::Cedar;
+//! use rust_cedar::Cedar;
 //!
 //! let dict = vec![
 //!     "a",

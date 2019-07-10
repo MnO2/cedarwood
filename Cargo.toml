@@ -1,5 +1,5 @@
 [package]
-name = "cedar"
+name = "rust-cedar"
 description = "efficiently-updatable double-array trie in Rust (ported from cedar)"
 repository = "https://github.com/MnO2/rust-cedar"
 version = "0.1.0"
