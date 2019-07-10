@@ -1,29 +1,32 @@
 #[derive(Default, Clone)]
 struct NInfo {
-    sibling: u8,
-    child: u8,
+    sibling: u8, // the index of right sibling, it is 0 if it doesn't have a sibling.
+    child: u8,   // the index of the first child
 }
 
 #[derive(Default, Clone)]
 struct Node {
-    value: i32,
-    check: i32,
+    base_: i32, // if it is a negative value, then it stores the value of previous index that is free.
+    check: i32, // if it is a negative value, then it stores the value of next index that is free.
 }
 
 impl Node {
     fn base(&self) -> i32 {
-        -(self.value + 1)
+        #[cfg(feature = "reduced-trie")]
+        -(self.base_ + 1);
+        #[cfg(not(feature = "reduced-trie"))]
+        self.base_
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 struct Block {
-    prev: i32,
-    next: i32,
-    num: i32,
-    reject: i32,
+    prev: i32, // previous block's index, 3 bytes width
+    next: i32, // next block's index, 3 bytes width
+    num: i16,  // the number of slots that is free, the range is 0-256
+    reject: i16,
     trial: i32,
-    e_head: i32,
+    e_head: i32, // the index of the first empty elemenet in this block
 }
 
 impl Block {
@@ -31,7 +34,7 @@ impl Block {
         Block {
             prev: 0,
             next: 0,
-            num: 256,
+            num: 256, // each of block has 256 free slots at the beginning
             reject: 257,
             trial: 0,
             e_head: 0,
@@ -49,33 +52,42 @@ pub struct Cedar {
     array: Vec<Node>,
     n_infos: Vec<NInfo>,
     blocks: Vec<Block>,
-    reject: Vec<i32>,
-    blocks_head_full: i32,
-    blocks_head_closed: i32,
-    blocks_head_open: i32,
+    reject: Vec<i16>,
+    blocks_head_full: i32,   // the index of the first 'Full' block, 0 means no 'Full' block
+    blocks_head_closed: i32, // the index of the first 'Closed' block, 0 means no ' Closed' block
+    blocks_head_open: i32,   // the index of the first 'Open' block, 0 means no 'Open' block
     capacity: usize,
     size: usize,
     ordered: bool,
     max_trial: i32,
 }
 
+#[allow(dead_code)]
+const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX;
+const CEDAR_NO_VALUE: i32 = std::i32::MAX;
+
 impl Cedar {
     pub fn new() -> Self {
         let mut array: Vec<Node> = Vec::with_capacity(256);
-        let n_infos: Vec<NInfo> = vec![Default::default(); 256];
+        let n_infos: Vec<NInfo> = (0..256).map(|_| Default::default()).collect();
         let mut blocks: Vec<Block> = vec![Block::new(); 1];
-        let reject: Vec<i32> = (0..=256).map(|i| i + 1).collect();
+        let reject: Vec<i16> = (0..=256).map(|i| i + 1).collect();
 
-        array.push(Node { value: -2, check: 0 });
+        #[cfg(feature = "reduced-trie")]
+        array.push(Node { base_: -1, check: -1 });
+        #[cfg(not(feature = "reduced-trie"))]
+        array.push(Node { base_: 0, check: -1 });
 
         for i in 1..256 {
+            // make `base_` point to the previous element, and make `check` point to the next element
             array.push(Node {
-                value: -(i - 1),
+                base_: -(i - 1),
                 check: -(i + 1),
             })
         }
 
-        array[1].value = -255;
+        // make them link as a cyclic doubly-linked list
+        array[1].base_ = -255;
         array[255].check = -1;
 
         blocks[0].e_head = 1;
@@ -95,200 +107,224 @@ impl Cedar {
         }
     }
 
-    pub fn jump(&self, path: &[u8], mut from: i32) -> Option<i32> {
-        let mut to = 0;
-        for &b in path {
-            if self.array[from as usize].value >= 0 {
-                return None;
+    #[allow(dead_code)]
+    pub fn build(&mut self, key_values: &[(&str, i32)]) {
+        for (key, value) in key_values {
+            self.update(key, value);
+        }
+    }
+
+    pub fn update(&mut self, key: &str, value: &i32) {
+        let from = 0;
+        let pos = 0;
+        self.update_(key.as_bytes(), value, from, pos);
+    }
+
+    fn update_(&mut self, key: &[u8], value: &i32, mut from: usize, mut pos: usize) -> i32 {
+        if from == 0 && key.len() == 0 {
+            panic!("failed to insert zero-length key");
+        }
+
+        while pos < key.len() {
+            #[cfg(feature = "reduced-trie")]
+            {
+                let val_ = self.array[from].base_;
+                if val_ >= 0 && val_ != CEDAR_VALUE_LIMIT {
+                    let to = self.follow(from, 0);
+                    self.array[to].base_ = val_;
+                }
             }
 
-            to = self.array[from as usize].base() ^ (b as i32);
-            if self.array[to as usize].check != from {
+            from = self.follow(from, key[pos]) as usize;
+            pos += 1;
+        }
+
+        #[cfg(feature = "reduced-trie")]
+        let to = if self.array[from].base_ >= 0 {
+            from as i32
+        } else {
+            self.follow(from, 0)
+        };
+        #[cfg(not(feature = "reduced-trie"))]
+        let to = self.follow(from, 0);
+
+        self.array[to as usize].base_ += value;
+        self.array[to as usize].base_
+    }
+
+    fn follow(&mut self, from: usize, label: u8) -> i32 {
+        let base = self.array[from].base();
+
+        #[allow(unused_assignments)]
+        let mut to = 0;
+
+        if base < 0 || self.array[(base ^ (label as i32)) as usize].check < 0 {
+            to = self.pop_e_node(base, label, from as i32);
+            let branch: i32 = to ^ (label as i32);
+            self.push_sibling(from, branch, label, base >= 0);
+        } else {
+            to = base ^ (label as i32);
+            if self.array[to as usize].check != (from as i32) {
+                to = self.resolve(from, base, label);
+            }
+        }
+
+        to
+    }
+
+    // find key from double array trie
+    fn find(&self, key: &[u8], mut from: usize) -> Option<i32> {
+        #[allow(unused_assignments)]
+        let mut to: usize = 0;
+        for pos in 0..key.len() {
+            #[cfg(feature = "reduced-trie")]
+            {
+                if self.array[from as usize].base_ >= 0 {
+                    break;
+                }
+            }
+
+            to = (self.array[from as usize].base() ^ (key[pos] as i32)) as usize;
+            if self.array[to as usize].check != (from as i32) {
                 return None;
             }
 
             from = to;
         }
 
-        return Some(to);
-    }
-
-    pub fn value(&self, id: i32) -> Option<i32> {
-        let value = self.array[id as usize].value;
-        if value >= 0 {
-            return Some(value);
-        }
-
-        let to = self.array[id as usize].base();
-        if self.array[to as usize].check == id && self.array[to as usize].value >= 0 {
-            return Some(self.array[to as usize].value);
-        }
-
-        return None;
-    }
-
-    pub fn insert(&mut self, key: &[u8], value: i32) {
-        let idx = self.get_idx(key, 0, 0);
-        self.array[idx as usize].value = value;
-    }
-
-    pub fn delete(&mut self, key: &Vec<u8>) {
-        if let Some(mut to) = self.jump(key, 0) {
-            if self.array[to as usize].value < 0 {
-                let base = self.array[to as usize].base();
-                if self.array[base as usize].check == to {
-                    to = base;
+        #[cfg(feature = "reduced-trie")]
+        {
+            if self.array[from].value >= 0 {
+                if pos == len {
+                    return Some(self.array[from].base_);
+                } else {
+                    return None;
                 }
             }
-
-            while to > 0 {
-                let from = self.array[to as usize].check;
-                let base = self.array[from as usize].base();
-                let label: u8 = (to ^ base) as u8;
-
-                if self.n_infos[to as usize].sibling != 0 || self.n_infos[from as usize].child != label {
-                    self.pop_sibling(from, base, label);
-                    self.push_e_node(to);
-                    break;
-                }
-
-                self.push_e_node(to);
-                to = from;
-            }
         }
-    }
 
-    pub fn get(&self, key: &[u8]) -> Option<i32> {
-        if let Some(to) = self.jump(key, 0) {
-            self.value(to)
+        let n = &self.array[(self.array[from].base() ^ 0) as usize];
+        if n.check != (from as i32) {
+            return Some(CEDAR_NO_VALUE);
         } else {
-            None
+            return Some(n.base_);
         }
     }
 
-    pub fn prefix_match(&self, key: &[u8], mut num: i32) -> Vec<i32> {
-        let mut from = 0;
-        let mut ids: Vec<i32> = Vec::new();
-        for i in 0..(key.len()) {
-            if let Some(to) = self.jump(&key[i..(i + 1)].to_vec(), from) {
-                if self.value(to).is_some() {
-                    ids.push(to);
-                    num -= 1;
-                    if num == 0 {
-                        return ids;
-                    }
-                }
+    pub fn erase(&mut self, key: &str) {
+        self.erase_(key.as_bytes())
+    }
 
-                from = to;
+    fn erase_(&mut self, _key: &[u8]) {
+        unimplemented!();
+    }
+
+    pub fn common_prefix_search(&self, key: &str) -> Vec<(i32, usize, usize)> {
+        let key = key.as_bytes();
+        let from: usize = 0;
+
+        let mut result: Vec<(i32, usize, usize)> = Vec::new();
+        for i in 0..(key.len()) {
+            if let Some(value) = self.find(&key[i..i + 1], from) {
+                if value == CEDAR_NO_VALUE {
+                    continue;
+                } else {
+                    result.push((value, i, from));
+                }
             } else {
                 break;
             }
         }
-        return ids;
+
+        return result;
     }
 
-    pub fn prefix_predict(&self, key: &Vec<u8>, mut num: i32) -> Vec<i32> {
-        let mut ids: Vec<i32> = Vec::new();
+    pub fn common_prefix_predict(&self, key: &Vec<u8>) -> Vec<(i32, usize, usize)> {
+        let mut result: Vec<(i32, usize, usize)> = Vec::new();
+        let mut from = 0;
+        let mut p = 0;
 
-        if let Some(root) = self.jump(key, 0) {
-            let mut from = self.begin(root);
-            while from != 0 {
-                ids.push(from);
-                num -= 1;
-                if num == 0 {
-                    return ids;
-                }
+        #[allow(unused_assignments)]
+        let mut value: Option<i32> = None;
 
-                if let Some(f) = self.next(from, root) {
-                    from = f;
-                    continue;
-                } else {
-                    break;
-                }
+        if self.find(key, 0).is_some() {
+            let root: usize = from;
+
+            let (v_, from_, p_) = self.begin(from, p);
+            from = from_;
+            p = p_;
+            value = v_;
+
+            while value.is_some() {
+                result.push((value.unwrap(), p, from));
+
+                let (v_, from_, p_) = self.next(from, p, root);
+                from = from_;
+                p = p_;
+                value = v_;
             }
         }
 
-        return ids;
+        return result;
     }
 
-    fn begin(&self, mut from: i32) -> i32 {
-        let mut c: u8 = self.n_infos[from as usize].child;
+    fn begin(&self, mut from: usize, mut p: usize) -> (Option<i32>, usize, usize) {
+        let base = self.array[from].base();
+        let mut c = self.n_infos[from].child;
+
+        if from == 0 {
+            c = self.n_infos[(base ^ (c as i32)) as usize].sibling;
+            if c == 0 {
+                return (None, from, p);
+            }
+        }
+
         while c != 0 {
-            let to = self.array[from as usize].base() ^ (c as i32);
-            c = self.n_infos[to as usize].child;
-            from = to;
+            from = (self.array[from].base() ^ (c as i32)) as usize;
+            c = self.n_infos[from].child;
+            p += 1;
         }
 
-        if self.array[from as usize].base() > 0 {
-            return self.array[from as usize].base();
+        #[cfg(feature = "reduced-trie")]
+        {
+            if self.array[from].base_ >= 0 {
+                return self.array[from].base_;
+            }
         }
 
-        return from;
+        let v = self.array[(self.array[from].base() ^ (c as i32)) as usize].base_;
+        return (Some(v), from, p);
     }
 
-    fn next(&self, mut from: i32, root: i32) -> Option<i32> {
-        let mut c = self.n_infos[from as usize].sibling;
+    fn next(&self, mut from: usize, mut p: usize, root: usize) -> (Option<i32>, usize, usize) {
+        #[allow(unused_assignments)]
+        let mut c: u8 = 0;
 
-        while c == 0 && from != root && self.array[from as usize].check >= 0 {
-            from = self.array[from as usize].check;
+        #[cfg(feature = "reduced-trie")]
+        {
+            if self.array[from].base_ < 0 {
+                c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
+            }
+        }
+        #[cfg(not(feature = "reduced-trie"))]
+        {
+            c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
+        }
+
+        while c == 0 && from != root {
             c = self.n_infos[from as usize].sibling;
+            from = self.array[from as usize].check as usize;
+
+            p -= 1;
         }
 
-        if from == root {
-            return None;
-        }
-
-        from = self.array[self.array[from as usize].check as usize].base() ^ (c as i32);
-        return Some(self.begin(from));
-    }
-
-    fn get_idx(&mut self, key: &[u8], mut from: i32, pos: i32) -> i32 {
-        let n = key.len();
-        let start = pos as usize;
-        let mut to: i32;
-        for i in start..n {
-            let value = self.array[from as usize].value;
-
-            if value >= 0 && value < std::i32::MAX {
-                let to = self.follow(from, 0);
-                self.array[to as usize].value = value;
-            }
-
-            from = self.follow(from, key[i]);
-        }
-
-        to = from;
-        if self.array[from as usize].value < 0 {
-            to = self.follow(from, 0);
-        }
-
-        to
-    }
-
-    fn follow(&mut self, from: i32, label: u8) -> i32 {
-        let base = self.array[from as usize].base();
-        let mut to = base ^ (label as i32);
-
-        if base < 0 || self.array[to as usize].check < 0 {
-            let mut has_child = false;
-            if base >= 0 {
-                let branch: i32 = base ^ (self.n_infos[from as usize].child as i32);
-                has_child = (self.array[branch as usize].check == from)
-            }
-
-            to = self.pop_e_node(base, label, from);
-
-            let branch: i32 = base ^ (label as i32);
-            self.push_sibling(from, branch, label, has_child);
-        } else if self.array[to as usize].check != from {
-            to = self.resolve(from, base, label);
-        } else if self.array[to as usize].check == from {
-            // skip
+        if c != 0 {
+            from = (self.array[from].base() ^ (c as i32)) as usize;
+            let (v_, from_, p_) = self.begin(from, p + 1);
+            return (v_, from_, p_);
         } else {
-            unreachable!();
+            return (None, from, p);
         }
-
-        to
     }
 
     fn pop_block(&mut self, idx: i32, from: BlockType, last: bool) {
@@ -325,6 +361,7 @@ impl Cedar {
         } else {
             self.blocks[idx as usize].prev = self.blocks[*head as usize].prev;
             self.blocks[idx as usize].next = *head;
+
             *head = idx;
 
             let t = self.blocks[*head as usize].prev;
@@ -335,56 +372,59 @@ impl Cedar {
 
     fn add_block(&mut self) -> i32 {
         if self.size == self.capacity {
-            self.capacity *= 2;
+            self.capacity += self.capacity;
 
             self.array.resize(self.capacity, Default::default());
             self.n_infos.resize(self.capacity, Default::default());
-            self.blocks.resize(self.capacity >> 8, Default::default());
+            self.blocks.resize(self.capacity >> 8, Block::new());
         }
 
-        self.blocks[self.size >> 8] = Block::new();
         self.blocks[self.size >> 8].e_head = self.size as i32;
 
+        // make it a doubley linked list
         self.array[self.size] = Node {
-            value: -((self.size as i32) + 255),
+            base_: -((self.size as i32) + 255),
             check: -((self.size as i32) + 1),
         };
 
         for i in (self.size + 1)..(self.size + 255) {
             self.array[i] = Node {
-                value: -(i as i32 - 1),
+                base_: -(i as i32 - 1),
                 check: -(i as i32 + 1),
             };
         }
 
         self.array[self.size + 255] = Node {
-            value: -((self.size as i32) + 254),
+            base_: -((self.size as i32) + 254),
             check: -(self.size as i32),
         };
 
-        let is_empty = (self.blocks_head_open == 0);
+        let is_empty = self.blocks_head_open == 0;
         let idx = (self.size >> 8) as i32;
         self.push_block(idx, BlockType::Open, is_empty);
+
         self.size += 256;
 
         ((self.size >> 8) - 1) as i32
     }
 
     fn transfer_block(&mut self, idx: i32, from: BlockType, to: BlockType, to_block_empty: bool) {
-        let is_last = (idx == self.blocks[idx as usize].next);
+        let is_last = idx == self.blocks[idx as usize].next; //it's the last one if the next points to itself
         let is_empty = to_block_empty && (self.blocks[idx as usize].num != 0);
 
-        self.pop_block(idx, from, is_empty);
-        self.push_block(idx, to, is_last);
+        self.pop_block(idx, from, is_last);
+        self.push_block(idx, to, is_empty);
     }
 
     fn pop_e_node(&mut self, base: i32, label: u8, from: i32) -> i32 {
-        let mut e = base ^ (label as i32);
-        if base < 0 {
-            e = self.find_place();
-        }
+        let e: i32 = if base < 0 {
+            self.find_place()
+        } else {
+            base ^ (label as i32)
+        };
 
         let idx = e >> 8;
+
         let n = self.array[e as usize].clone();
         self.blocks[idx as usize].num -= 1;
 
@@ -393,8 +433,8 @@ impl Cedar {
                 self.transfer_block(idx, BlockType::Closed, BlockType::Full, self.blocks_head_full == 0);
             }
         } else {
-            self.array[(-n.value) as usize].check = n.check;
-            self.array[(-n.check) as usize].value = n.value;
+            self.array[(-n.base_) as usize].check = n.check;
+            self.array[(-n.check) as usize].base_ = n.base_;
 
             if e == self.blocks[idx as usize].e_head {
                 self.blocks[idx as usize].e_head = -n.check;
@@ -405,11 +445,26 @@ impl Cedar {
             }
         }
 
-        self.array[e as usize].value = std::i32::MAX;
-        self.array[e as usize].check = from;
+        #[cfg(feature = "reduced-trie")]
+        {
+            self.array[e as usize].base_ = CEDAR_VALUE_LIMIT;
+            self.array[e as usize].check = from;
+            if base < 0 {
+                self.array[from as usize].base_ = -(e ^ (label as i32)) - 1;
+            }
+        }
 
-        if base < 0 {
-            self.array[from as usize].value = -(e ^ (label as i32)) - 1;
+        #[cfg(not(feature = "reduced-trie"))]
+        {
+            if label != 0 {
+                self.array[e as usize].base_ = -1;
+            } else {
+                self.array[e as usize].base_ = 0;
+            }
+            self.array[e as usize].check = from;
+            if base < 0 {
+                self.array[from as usize].base_ = e ^ (label as i32);
+            }
         }
 
         e
@@ -421,7 +476,7 @@ impl Cedar {
 
         if self.blocks[idx as usize].num == 1 {
             self.blocks[idx as usize].e_head = e;
-            self.array[e as usize] = Node { value: -e, check: -e };
+            self.array[e as usize] = Node { base_: -e, check: -e };
 
             if idx != 0 {
                 self.transfer_block(idx, BlockType::Full, BlockType::Closed, self.blocks_head_closed == 0);
@@ -432,12 +487,12 @@ impl Cedar {
             let next = -self.array[prev as usize].check;
 
             self.array[e as usize] = Node {
-                value: -prev,
+                base_: -prev,
                 check: -next,
             };
 
             self.array[prev as usize].check = -e;
-            self.array[next as usize].value = -e;
+            self.array[next as usize].base_ = -e;
 
             if self.blocks[idx as usize].num == 2 || self.blocks[idx as usize].trial == self.max_trial {
                 if idx != 0 {
@@ -455,58 +510,63 @@ impl Cedar {
         self.n_infos[e as usize] = Default::default();
     }
 
-    fn push_sibling(&mut self, from: i32, base: i32, label: u8, has_child: bool) {
-        let mut keep_order = (self.n_infos[from as usize].child == 0);
-        if self.ordered {
-            keep_order = (label > self.n_infos[from as usize].child);
-        }
+    fn push_sibling(&mut self, from: usize, base: i32, label: u8, has_child: bool) {
+        let keep_order: bool = if self.ordered {
+            label > self.n_infos[from].child
+        } else {
+            self.n_infos[from].child == 0
+        };
 
         let sibling: u8;
         {
             let mut c: &mut u8 = &mut self.n_infos[from as usize].child;
             if has_child && keep_order {
-                let code = (*c as i32);
-                c = &mut self.n_infos[(base ^ code) as usize].sibling;
-
-                while self.ordered && (*c != 0) && (*c < label) {
-                    let code = (*c as i32);
+                loop {
+                    let code = *c as i32;
                     c = &mut self.n_infos[(base ^ code) as usize].sibling;
+
+                    if !(self.ordered && (*c != 0) && (*c < label)) {
+                        break;
+                    }
                 }
             }
             sibling = *c;
+
             *c = label;
         }
 
         self.n_infos[(base ^ (label as i32)) as usize].sibling = sibling;
     }
 
+    #[allow(dead_code)]
     fn pop_sibling(&mut self, from: i32, base: i32, label: u8) {
         let mut c: (*mut u8) = &mut self.n_infos[from as usize].child;
         unsafe {
             while *c != label {
-                let code = (*c as i32);
+                let code = *c as i32;
                 c = &mut self.n_infos[(base ^ code) as usize].sibling;
             }
 
-            let code = (*c as i32);
+            let code = label as i32;
             *c = self.n_infos[(base ^ code) as usize].sibling;
         }
     }
 
     fn consult(&self, base_n: i32, base_p: i32, mut c_n: u8, mut c_p: u8) -> bool {
-        c_n = self.n_infos[(base_n ^ (c_n as i32)) as usize].sibling;
-        c_p = self.n_infos[(base_p ^ (c_p as i32)) as usize].sibling;
-
-        while c_n != 0 && c_p != 0 {
+        loop {
             c_n = self.n_infos[(base_n ^ (c_n as i32)) as usize].sibling;
             c_p = self.n_infos[(base_p ^ (c_p as i32)) as usize].sibling;
+
+            if !(c_n != 0 && c_p != 0) {
+                break;
+            }
         }
 
         c_p != 0
     }
 
-    fn set_child(&self, base: i32, mut c: u8, label: u8, flag: bool) -> Vec<u8> {
-        let mut child: Vec<u8> = (0..257).map(|i| 0).collect();
+    fn set_child(&self, base: i32, mut c: u8, label: u8, not_terminal: bool) -> Vec<u8> {
+        let mut child: Vec<u8> = Vec::new();
 
         if c == 0 {
             child.push(c);
@@ -520,7 +580,7 @@ impl Cedar {
             }
         }
 
-        if flag {
+        if not_terminal {
             child.push(label);
         }
 
@@ -548,7 +608,7 @@ impl Cedar {
         let mut idx = self.blocks_head_open;
         if idx != 0 {
             let bz = self.blocks[self.blocks_head_open as usize].prev;
-            let nc = child.len() as i32;
+            let nc = child.len() as i16;
 
             loop {
                 if self.blocks[idx as usize].num >= nc && nc < self.blocks[idx as usize].reject {
@@ -577,6 +637,7 @@ impl Cedar {
                     }
 
                     let idx_ = self.blocks[idx as usize].next;
+
                     self.blocks[idx as usize].trial += 1;
                     if self.blocks[idx as usize].trial == self.max_trial {
                         self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
@@ -594,17 +655,19 @@ impl Cedar {
         self.add_block() << 8
     }
 
-    fn resolve(&mut self, mut from_n: i32, base_n: i32, label_n: u8) -> i32 {
+    fn resolve(&mut self, mut from_n: usize, base_n: i32, label_n: u8) -> i32 {
         let to_pn = base_n ^ (label_n as i32);
         let from_p = self.array[to_pn as usize].check;
         let base_p = self.array[from_p as usize].base();
 
+        // whether to replace siblings of newly added
         let flag = self.consult(
             base_n,
             base_p,
             self.n_infos[from_n as usize].child,
             self.n_infos[from_p as usize].child,
         );
+
         let children: Vec<u8> = if flag {
             self.set_child(base_n, self.n_infos[from_n as usize].child, label_n, true)
         } else {
@@ -617,15 +680,27 @@ impl Cedar {
             self.find_places(&children)
         };
 
-        base ^= (children[0] as i32);
+        base ^= children[0] as i32;
 
-        let (from, base_) = if flag { (from_n, base_n) } else { (from_p, base_p) };
+        let (from, base_) = if flag {
+            (from_n as i32, base_n)
+        } else {
+            (from_p, base_p)
+        };
 
         if flag && children[0] == label_n {
             self.n_infos[from as usize].child = label_n;
         }
 
-        self.array[from as usize].value = -base - 1;
+        #[cfg(feature = "reduced-trie")]
+        {
+            self.array[from as usize].base_ = -base - 1;
+        }
+
+        #[cfg(not(feature = "reduced-trie"))]
+        {
+            self.array[from as usize].base_ = base;
+        }
 
         for i in 0..(children.len()) {
             let to = self.pop_e_node(base, children[i], from);
@@ -641,63 +716,100 @@ impl Cedar {
                 continue;
             }
 
-            self.array[to as usize].value = self.array[to_ as usize].value;
+            self.array[to as usize].base_ = self.array[to_ as usize].base_;
+            #[cfg(feature = "reduced-trie")]
+            {
+                if self.array[to as usize].base_ < 0 && children[i] != 0 {
+                    let mut c = self.n_infos[to_ as usize].child;
 
-            if self.array[to as usize].value < 0 && children[i] != 0 {
-                let mut c = self.n_infos[to_ as usize].child;
+                    self.n_infos[to as usize].child = c;
 
-                self.n_infos[to as usize].child = c;
-                let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
-                self.array[idx].check = to;
-                c = self.n_infos[idx].sibling;
+                    loop {
+                        let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
+                        self.array[idx].check = to;
+                        c = self.n_infos[idx].sibling;
 
-                while c != 0 {
-                    self.array[idx].check = to;
-                    c = self.n_infos[idx].sibling;
+                        if c == 0 {
+                            break;
+                        }
+                    }
                 }
             }
 
-            if !flag && to_ == from_n {
-                from_n = to;
+            #[cfg(not(feature = "reduced-trie"))]
+            {
+                if self.array[to as usize].base_ > 0 && children[i] != 0 {
+                    let mut c = self.n_infos[to_ as usize].child;
+
+                    self.n_infos[to as usize].child = c;
+
+                    loop {
+                        let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
+                        self.array[idx].check = to;
+                        c = self.n_infos[idx].sibling;
+
+                        if c == 0 {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if !flag && to_ == (from_n as i32) {
+                from_n = to as usize;
             }
 
             if !flag && to_ == to_pn {
                 self.push_sibling(from_n, to_pn ^ (label_n as i32), label_n, true);
                 self.n_infos[to_ as usize].child = 0;
-                self.array[to_ as usize].value = std::i32::MAX;
-                self.array[to_ as usize].check = from_n;
+
+                #[cfg(feature = "reduced-trie")]
+                {
+                    self.array[to_ as usize].base_ = CEDAR_VALUE_LIMIT;
+                }
+
+                #[cfg(not(feature = "reduced-trie"))]
+                {
+                    if label_n != 0 {
+                        self.array[to_ as usize].base_ = -1;
+                    } else {
+                        self.array[to_ as usize].base_ = 0;
+                    }
+                }
+
+                self.array[to_ as usize].check = from_n as i32;
             } else {
                 self.push_e_node(to_);
             }
         }
 
         if flag {
-            return base ^ (label_n as i32);
+            base ^ (label_n as i32)
+        } else {
+            to_pn
         }
-
-        to_pn
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_prefix_match() {
+    fn test_common_prefix_search() {
         let dict = vec!["a", "ab", "abc", "アルゴリズム", "データ", "構造"];
-
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
         let mut cedar = Cedar::new();
+        cedar.build(&key_values);
 
-        for (i, w) in dict.iter().enumerate() {
-            cedar.insert(w.as_bytes(), i as i32);
-        }
+        let result: Vec<i32> = cedar.common_prefix_search("abcdefg").iter().map(|x| x.0).collect();
+        assert_eq!(vec![0, 1, 2], result);
 
-        let ids = cedar.prefix_match("abcdefg".as_bytes(), 0);
-        assert_eq!(vec![0, 1, 2], ids);
-
-        let ids = cedar.prefix_match("データ構造とアルゴリズム".as_bytes(), 0);
-        assert_eq!(vec![4], ids);
+        let result: Vec<i32> = cedar
+            .common_prefix_search("データ構造とアルゴリズム")
+            .iter()
+            .map(|x| x.0)
+            .collect();
+        assert_eq!(vec![4], result);
     }
 }
