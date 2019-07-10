@@ -16,7 +16,7 @@ codecov = { repository = "MnO2/rust-cedar" }
 
 [features]
 default = []
-reduced-trie = []
+#reduced-trie = []
 
 [dev-dependencies]
 criterion = "0.2"
