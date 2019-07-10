@@ -397,7 +397,7 @@ impl Cedar {
         self.add_block() << 8
     }
 
-    fn find_places(&mut self, child: Vec<u8>) -> i32 {
+    fn find_places(&mut self, child: &Vec<u8>) -> i32 {
         let mut idx = self.blocks_head_open;
         if idx != 0 {
             let bz = self.blocks[self.blocks_head_open as usize].prev;
@@ -447,7 +447,87 @@ impl Cedar {
         self.add_block() << 8
     }
 
-    fn resolve(&self, from_n: i32, base_n: i32, label_n: u8) -> i32 {
-        unimplemented!();
+    fn resolve(&mut self, mut from_n: i32, base_n: i32, label_n: u8) -> i32 {
+        let to_pn = base_n ^ (label_n as i32);
+        let from_p = self.array[to_pn as usize].check;
+        let base_p = self.array[from_p as usize].base();
+
+        let flag = self.consult(
+            base_n,
+            base_p,
+            self.n_infos[from_n as usize].child,
+            self.n_infos[from_p as usize].child,
+        );
+        let children: Vec<u8> = if flag {
+            self.set_child(base_n, self.n_infos[from_n as usize].child, label_n, true)
+        } else {
+            self.set_child(base_p, self.n_infos[from_p as usize].child, 255, false)
+        };
+
+        let mut base = if children.len() == 1 {
+            self.find_place()
+        } else {
+            self.find_places(&children)
+        };
+
+        base ^= (children[0] as i32);
+
+        let (from, base_) = if flag { (from_n, base_n) } else { (from_p, base_p) };
+
+        if flag && children[0] == label_n {
+            self.n_infos[from as usize].child = label_n;
+        }
+
+        self.array[from as usize].value = -base - 1;
+
+        for i in 0..(children.len()) {
+            let to = self.pop_e_node(base, children[i], from);
+            let to_ = base_ ^ (children[i] as i32);
+
+            if i == children.len() - 1 {
+                self.n_infos[to as usize].sibling = 0;
+            } else {
+                self.n_infos[to as usize].sibling = children[i + 1];
+            }
+
+            if flag && to_ == to_pn {
+                continue;
+            }
+
+            self.array[to as usize].value = self.array[to_ as usize].value;
+
+            if self.array[to as usize].value < 0 && children[i] != 0 {
+                let mut c = self.n_infos[to_ as usize].child;
+
+                self.n_infos[to as usize].child = c;
+                let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
+                self.array[idx].check = to;
+                c = self.n_infos[idx].sibling;
+
+                while c != 0 {
+                    self.array[idx].check = to;
+                    c = self.n_infos[idx].sibling;
+                }
+            }
+
+            if !flag && to_ == from_n {
+                from_n = to;
+            }
+
+            if !flag && to_ == to_pn {
+                self.push_sibling(from_n, to_pn ^ (label_n as i32), label_n, true);
+                self.n_infos[to_ as usize].child = 0;
+                self.array[to_ as usize].value = std::i32::MAX;
+                self.array[to_ as usize].check = from_n;
+            } else {
+                self.push_e_node(to_);
+            }
+        }
+
+        if flag {
+            return base ^ (label_n as i32);
+        }
+
+        to_pn
     }
 }
