@@ -95,7 +95,7 @@ impl Cedar {
         }
     }
 
-    fn jump(&self, path: &Vec<u8>, mut from: i32) -> Option<i32> {
+    pub fn jump(&self, path: &Vec<u8>, mut from: i32) -> Option<i32> {
         let mut to = 0;
         for &b in path {
             if self.array[from as usize].value >= 0 {
@@ -127,6 +127,45 @@ impl Cedar {
         return None;
     }
 
+    pub fn insert(&mut self, key: &Vec<u8>, value: i32) {
+        let idx = self.get_idx(key, 0, 0);
+        self.array[idx as usize].value = value;
+    }
+
+    pub fn delete(&mut self, key: &Vec<u8>) {
+        if let Some(mut to) = self.jump(key, 0) {
+            if self.array[to as usize].value < 0 {
+                let base = self.array[to as usize].base();
+                if self.array[base as usize].check == to {
+                    to = base;
+                }
+            }
+
+            while to > 0 {
+                let from = self.array[to as usize].check;
+                let base = self.array[from as usize].base();
+                let label: u8 = (to ^ base) as u8;
+
+                if self.n_infos[to as usize].sibling != 0 || self.n_infos[from as usize].child != label {
+                    self.pop_sibling(from, base, label);
+                    self.push_e_node(to);
+                    break;
+                }
+
+                self.push_e_node(to);
+                to = from;
+            }
+        }
+    }
+
+    pub fn get(&self, key: &Vec<u8>) -> Option<i32> {
+        if let Some(to) = self.jump(key, 0) {
+            self.value(to)
+        } else {
+            None
+        }
+    }
+
     pub fn prefix_match(&self, key: &Vec<u8>, mut num: i32) -> Vec<i32> {
         let mut from = 0;
         let mut ids: Vec<i32> = Vec::new();
@@ -148,7 +187,62 @@ impl Cedar {
         return ids;
     }
 
-    fn get(&mut self, key: Vec<u8>, mut from: i32, pos: i32) -> i32 {
+    pub fn prefix_predict(&self, key: &Vec<u8>, mut num: i32) -> Vec<i32> {
+        let mut ids: Vec<i32> = Vec::new();
+
+        if let Some(root) = self.jump(key, 0) {
+            let mut from = self.begin(root);
+            while from != 0 {
+                ids.push(from);
+                num -= 1;
+                if num == 0 {
+                    return ids;
+                }
+
+                if let Some(f) = self.next(from, root) {
+                    from = f;
+                    continue;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    fn begin(&self, mut from: i32) -> i32 {
+        let mut c: u8 = self.n_infos[from as usize].child;
+        while c != 0 {
+            let to = self.array[from as usize].base() ^ (c as i32);
+            c = self.n_infos[to as usize].child;
+            from = to;
+        }
+
+        if self.array[from as usize].base() > 0 {
+            return self.array[from as usize].base();
+        }
+
+        return from;
+    }
+
+    fn next(&self, mut from: i32, root: i32) -> Option<i32> {
+        let mut c = self.n_infos[from as usize].sibling;
+
+        while c == 0 && from != root && self.array[from as usize].check >= 0 {
+            from = self.array[from as usize].check;
+            c = self.n_infos[from as usize].sibling;
+        }
+
+        if from == root {
+            return None;
+        }
+
+        from = self.array[self.array[from as usize].check as usize].base() ^ (c as i32);
+        return Some(self.begin(from));
+    }
+
+    fn get_idx(&mut self, key: &Vec<u8>, mut from: i32, pos: i32) -> i32 {
         let n = key.len();
         let start = pos as usize;
         let mut to: i32;
@@ -168,7 +262,7 @@ impl Cedar {
             to = self.follow(from, 0);
         }
 
-        self.array[to as usize].value
+        to
     }
 
     fn follow(&mut self, from: i32, label: u8) -> i32 {
