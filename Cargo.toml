@@ -25,6 +25,7 @@ criterion = "0.2"
 [[bench]]
 name = "cedarwood_benchmark"
 harness = false
+path = "./benches/cedarwood_benchmark.rs"
 required-features = []
 
 [package.metadata.docs.rs]
