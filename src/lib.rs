@@ -168,6 +168,56 @@ impl<'a> Iterator for PrefixIter<'a> {
     }
 }
 
+pub struct PrefixPredictIter<'a> {
+    cedar: &'a Cedar,
+    key: &'a [u8],
+    from: usize,
+    p: usize,
+    root: usize,
+    value: Option<i32>,
+}
+
+impl<'a> Iterator for PrefixPredictIter<'a> {
+    type Item = (i32, usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.from == 0 && self.p == 0 {
+            if self.cedar.find(self.key, &mut self.from).is_some() {
+                self.root = self.from;
+
+                let (v_, from_, p_) = self.cedar.begin(self.from, self.p);
+                self.from = from_;
+                self.p = p_;
+                self.value = v_;
+
+                while self.value.is_some() {
+                    let result = (self.value.unwrap().clone(), self.p.clone(), self.from.clone());
+
+                    let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
+                    self.from = from_;
+                    self.p = p_;
+                    self.value = v_;
+
+                    return Some(result);
+                }
+            }
+        } else {
+            while self.value.is_some() {
+                let result = (self.value.unwrap().clone(), self.p.clone(), self.from.clone());
+
+                let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
+                self.from = from_;
+                self.p = p_;
+                self.value = v_;
+
+                return Some(result);
+            }
+        }
+
+        return None;
+    }
+}
+
 impl Cedar {
     pub fn new() -> Self {
         let mut array: Vec<Node> = Vec::with_capacity(256);
@@ -395,35 +445,22 @@ impl Cedar {
         self.common_prefix_iter(key).map(Some).collect()
     }
 
-    /// To return the list of words in the dictionary that has `key` as their prefix.
-    pub fn common_prefix_predict(&self, key: &str) -> Vec<(i32, usize, usize)> {
+    pub fn common_prefix_predict_iter<'a>(&'a self, key: &'a str) -> PrefixPredictIter<'a> {
         let key = key.as_bytes();
-        let mut result: Vec<(i32, usize, usize)> = Vec::new();
-        let mut from = 0;
-        let mut p = 0;
 
-        #[allow(unused_assignments)]
-        let mut value: Option<i32> = None;
-
-        if self.find(key, &mut from).is_some() {
-            let root: usize = from;
-
-            let (v_, from_, p_) = self.begin(from, p);
-            from = from_;
-            p = p_;
-            value = v_;
-
-            while value.is_some() {
-                result.push((value.unwrap(), p, from));
-
-                let (v_, from_, p_) = self.next(from, p, root);
-                from = from_;
-                p = p_;
-                value = v_;
-            }
+        PrefixPredictIter {
+            cedar: self,
+            key: key,
+            from: 0,
+            p: 0,
+            root: 0,
+            value: None,
         }
+    }
 
-        return result;
+    /// To return the list of words in the dictionary that has `key` as their prefix.
+    pub fn common_prefix_predict(&self, key: &str) -> Option<Vec<(i32, usize, usize)>> {
+        self.common_prefix_predict_iter(key).map(Some).collect()
     }
 
     fn begin(&self, mut from: usize, mut p: usize) -> (Option<i32>, usize, usize) {
@@ -1093,7 +1130,7 @@ mod tests {
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        let result: Vec<i32> = cedar.common_prefix_predict("a").iter().map(|x| x.0).collect();
+        let result: Vec<i32> = cedar.common_prefix_predict("a").unwrap().iter().map(|x| x.0).collect();
         assert_eq!(vec![0, 1, 2], result);
     }
 
