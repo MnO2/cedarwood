@@ -27,4 +27,7 @@ name = "cedarwood_benchmark"
 harness = false
 required-features = []
 
+[package.metadata.docs.rs]
+all-features = true
+
 [dependencies]
