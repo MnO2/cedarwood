@@ -4,6 +4,8 @@ Efficiently-updatable double-array trie in Rust (ported from cedar). This librar
 
 [![Build Status](https://travis-ci.com/MnO2/rust-cedar.svg?branch=master)](https://travis-ci.org/MnO2/rust-cedar)
 [![codecov](https://codecov.io/gh/MnO2/rust-cedar/branch/master/graph/badge.svg)](https://codecov.io/gh/MnO2/rust-cedar)
+[![Crates.io](https://img.shields.io/crates/v/cedarwood.svg)](https://crates.io/crates/cedarwood)
+[![docs.rs](https://docs.rs/cedarwood/badge.svg)](https://docs.rs/cedarwood/)
 
 ## Installation
 
