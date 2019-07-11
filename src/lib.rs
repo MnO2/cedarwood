@@ -1147,4 +1147,49 @@ mod tests {
         cedar.erase("a");
         assert!(cedar.exact_match_search("a").is_none());
     }
+
+    #[test]
+    fn test_update() {
+        let dict = vec!["a", "ab", "abc"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        cedar.update("abcd", 3);
+
+        assert!(cedar.exact_match_search("a").is_some());
+        assert!(cedar.exact_match_search("ab").is_some());
+        assert!(cedar.exact_match_search("abc").is_some());
+        assert!(cedar.exact_match_search("abcd").is_some());
+        assert!(cedar.exact_match_search("abcde").is_none());
+
+        let dict = vec!["a", "ab", "abc"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+        cedar.update("bachelor", 1);
+        cedar.update("jar", 2);
+        cedar.update("badge", 3);
+        cedar.update("baby", 4);
+
+        assert!(cedar.exact_match_search("bachelor").is_some());
+        assert!(cedar.exact_match_search("jar").is_some());
+        assert!(cedar.exact_match_search("badge").is_some());
+        assert!(cedar.exact_match_search("baby").is_some());
+        assert!(cedar.exact_match_search("abcde").is_none());
+
+        let dict = vec!["a", "ab", "abc"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+        cedar.update("中", 1);
+        cedar.update("中华", 2);
+        cedar.update("中华人民", 3);
+        cedar.update("中华人民共和国", 4);
+
+        assert!(cedar.exact_match_search("中").is_some());
+        assert!(cedar.exact_match_search("中华").is_some());
+        assert!(cedar.exact_match_search("中华人民").is_some());
+        assert!(cedar.exact_match_search("中华人民共和国").is_some());
+    }
 }
