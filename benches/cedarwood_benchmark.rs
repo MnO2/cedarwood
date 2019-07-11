@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate criterion;
-extern crate rust_cedar;
+extern crate cedarwood;
 
-use rust_cedar::Cedar;
+use cedarwood::Cedar;
 use criterion::Criterion;
 
 fn bench_cedar_build() {

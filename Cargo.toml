@@ -1,7 +1,7 @@
 [package]
-name = "rust-cedar"
+name = "cedarwood"
 description = "efficiently-updatable double-array trie in Rust (ported from cedar)"
-repository = "https://github.com/MnO2/rust-cedar"
+repository = "https://github.com/MnO2/cedarwoord"
 version = "0.1.0"
 license = "MIT"
 authors = ["Paul Meng <me@paulme.ng>"]
@@ -12,8 +12,8 @@ edition = "2018"
 exclude = ["/benches/**", "/.travis.yml"]
 
 [badges]
-travis-ci = { repository = "MnO2/rust-cedar" }
-codecov = { repository = "MnO2/rust-cedar" }
+travis-ci = { repository = "MnO2/cedarwood" }
+codecov = { repository = "MnO2/cedarwood" }
 
 [features]
 default = []
@@ -23,7 +23,7 @@ default = []
 criterion = "0.2"
 
 [[bench]]
-name = "cedar_benchmark"
+name = "cedarwood_benchmark"
 harness = false
 required-features = []
 
