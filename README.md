@@ -13,7 +13,7 @@ Add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cedarwood = "0.1"
+cedarwood = "0.2"
 ```
 
 then you are good to go. If you are using Rust 2015 you have to `extern crate cedarwood` to your crate root as well.
