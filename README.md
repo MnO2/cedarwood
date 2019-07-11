@@ -1,4 +1,4 @@
-# rust-cedar
+# cedarwood
 
 Efficiently-updatable double-array trie in Rust (ported from cedar). This library is still in alpha, feedbacks are welcomed. 
 
