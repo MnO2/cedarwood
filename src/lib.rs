@@ -58,12 +58,15 @@
 //! assert_eq!(vec![4], result);
 //! ```
 
+/// NInfo stores the information about the trie
 #[derive(Debug, Default, Clone)]
 struct NInfo {
     sibling: u8, // the index of right sibling, it is 0 if it doesn't have a sibling.
     child: u8,   // the index of the first child
 }
 
+/// Node contains the array of `base` and `check` as specified in the paper: "An efficient implementation of trie structures"
+/// https://dl.acm.org/citation.cfm?id=146691
 #[derive(Debug, Default, Clone)]
 struct Node {
     base_: i32, // if it is a negative value, then it stores the value of previous index that is free.
@@ -79,6 +82,7 @@ impl Node {
     }
 }
 
+/// Block stores the linked-list pointers and the stats info for blocks.
 #[derive(Debug, Clone)]
 struct Block {
     prev: i32, // previous block's index, 3 bytes width
@@ -108,6 +112,7 @@ enum BlockType {
     Full,
 }
 
+/// `Cedar` holds all of the information about double array trie.
 pub struct Cedar {
     array: Vec<Node>,
     n_infos: Vec<NInfo>,
@@ -356,6 +361,7 @@ impl Cedar {
         }
     }
 
+    /// To check if `key` is in the dictionary.
     pub fn exact_match_search(&self, key: &str) -> Option<(i32, usize, usize)> {
         let key = key.as_bytes();
         let mut from = 0;
@@ -367,6 +373,7 @@ impl Cedar {
         }
     }
 
+    /// To return an iterator to iterate through the common prefix in the dictionary with the `key` passed in.
     pub fn common_prefix_iter<'a>(&'a self, key: &'a str) -> PrefixIter<'a> {
         let key = key.as_bytes();
 
@@ -378,6 +385,7 @@ impl Cedar {
         }
     }
 
+    /// To return the collection of the common prefix in the dictionary with the `key` passed in.
     pub fn common_prefix_search(&self, key: &str) -> Vec<(i32, usize, usize)> {
         let key = key.as_bytes();
         let mut from: usize = 0;
@@ -398,6 +406,7 @@ impl Cedar {
         return result;
     }
 
+    /// To return the list of words in the dictionary that has `key` as their prefix.
     pub fn common_prefix_predict(&self, key: &str) -> Vec<(i32, usize, usize)> {
         let key = key.as_bytes();
         let mut result: Vec<(i32, usize, usize)> = Vec::new();
