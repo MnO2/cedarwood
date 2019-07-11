@@ -7,7 +7,7 @@
 //! cedarwood = "0.1"
 //! ```
 //!
-//! then you are good to go. If you are using Rust 2015 you have to `extern crate darts` to your crate root as well.
+//! then you are good to go. If you are using Rust 2015 you have to `extern crate cedarwood` to your crate root as well.
 //!
 //! ## Example
 //!
