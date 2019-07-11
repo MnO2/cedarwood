@@ -88,11 +88,11 @@ impl Node {
 /// Block stores the linked-list pointers and the stats info for blocks.
 #[derive(Debug, Clone)]
 struct Block {
-    prev: i32, // previous block's index, 3 bytes width
-    next: i32, // next block's index, 3 bytes width
-    num: i16,  // the number of slots that is free, the range is 0-256
-    reject: i16,
-    trial: i32,
+    prev: i32,   // previous block's index, 3 bytes width
+    next: i32,   // next block's index, 3 bytes width
+    num: i16,    // the number of slots that is free, the range is 0-256
+    reject: i16, // a heuristic number to make the search for free space faster, it is the minimum number of iteration in each trie node it has to try before we can conclude that we can reject this block. If the number of kids for the block we are looking for is less than this number then this block is worthy of searching.
+    trial: i32,  // the number of times this block has been probed by `find_places` for the free block.
     e_head: i32, // the index of the first empty elemenet in this block
 }
 
@@ -528,6 +528,7 @@ impl Cedar {
         }
     }
 
+    /// Reallocate more spaces so that we have more free blocks.
     fn add_block(&mut self) -> i32 {
         if self.size == self.capacity {
             self.capacity += self.capacity;
@@ -574,6 +575,7 @@ impl Cedar {
         self.push_block(idx, to, is_empty);
     }
 
+    /// Mark an edge `e` as used in a trie node.
     fn pop_e_node(&mut self, base: i32, label: u8, from: i32) -> i32 {
         let e: i32 = if base < 0 {
             self.find_place()
@@ -628,6 +630,7 @@ impl Cedar {
         e
     }
 
+    /// Mark an edge `e` as free in a trie node.
     fn push_e_node(&mut self, e: i32) {
         let idx = e >> 8;
         self.blocks[idx as usize].num += 1;
@@ -637,6 +640,7 @@ impl Cedar {
             self.array[e as usize] = Node { base_: -e, check: -e };
 
             if idx != 0 {
+                // Move the block from 'Full' to 'Closed' since it has one free slot now.
                 self.transfer_block(idx, BlockType::Full, BlockType::Closed, self.blocks_head_closed == 0);
             }
         } else {
@@ -644,6 +648,7 @@ impl Cedar {
 
             let next = -self.array[prev as usize].check;
 
+            // Insert to the edge immediately after the e_head
             self.array[e as usize] = Node {
                 base_: -prev,
                 check: -next,
@@ -652,12 +657,14 @@ impl Cedar {
             self.array[prev as usize].check = -e;
             self.array[next as usize].base_ = -e;
 
+            // Move the block from 'Closed' to 'Open' since it has more than one free slot now.
             if self.blocks[idx as usize].num == 2 || self.blocks[idx as usize].trial == self.max_trial {
                 if idx != 0 {
                     self.transfer_block(idx, BlockType::Closed, BlockType::Open, self.blocks_head_open == 0);
                 }
             }
 
+            // Reset the trial stats
             self.blocks[idx as usize].trial = 0;
         }
 
@@ -750,6 +757,7 @@ impl Cedar {
         child
     }
 
+    // For the case where only one free slot is needed
     fn find_place(&mut self) -> i32 {
         if self.blocks_head_closed != 0 {
             return self.blocks[self.blocks_head_closed as usize].e_head;
@@ -762,6 +770,7 @@ impl Cedar {
         self.add_block() << 8
     }
 
+    // For the case where multiple free slots are needed.
     fn find_places(&mut self, child: &Vec<u8>) -> i32 {
         let mut idx = self.blocks_head_open;
         if idx != 0 {
@@ -769,7 +778,7 @@ impl Cedar {
             let nc = child.len() as i16;
 
             loop {
-                //only proceed if the free slots are more than the number of children.
+                // only proceed if the free slots are more than the number of children.
                 if self.blocks[idx as usize].num >= nc && nc < self.blocks[idx as usize].reject {
                     let mut e = self.blocks[idx as usize].e_head;
                     loop {
@@ -817,6 +826,7 @@ impl Cedar {
         self.add_block() << 8
     }
 
+    // resolve the conflict by moving one of the the nodes to a free block.
     fn resolve(&mut self, mut from_n: usize, base_n: i32, label_n: u8) -> i32 {
         let to_pn = base_n ^ (label_n as i32);
         let from_p = self.array[to_pn as usize].check;
