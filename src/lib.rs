@@ -33,11 +33,12 @@
 //! let mut cedar = Cedar::new();
 //! cedar.build(&key_values);
 //!
-//! let result: Vec<i32> = cedar.common_prefix_search("abcdefg").iter().map(|x| x.0).collect();
+//! let result: Vec<i32> = cedar.common_prefix_search("abcdefg").unwrap().iter().map(|x| x.0).collect();
 //! assert_eq!(vec![0, 1, 2], result);
 //!
 //! let result: Vec<i32> = cedar
 //!     .common_prefix_search("网球拍卖会")
+//!     .unwrap()
 //!     .iter()
 //!     .map(|x| x.0)
 //!     .collect();
@@ -45,6 +46,7 @@
 //!
 //! let result: Vec<i32> = cedar
 //!     .common_prefix_search("中华人民共和国")
+//!     .unwrap()
 //!     .iter()
 //!     .map(|x| x.0)
 //!     .collect();
@@ -52,6 +54,7 @@
 //!
 //! let result: Vec<i32> = cedar
 //!     .common_prefix_search("データ構造とアルゴリズム")
+//!     .unwrap()
 //!     .iter()
 //!     .map(|x| x.0)
 //!     .collect();
@@ -272,7 +275,7 @@ impl Cedar {
         to
     }
 
-    // find key from double array trie
+    // Find key from double array trie
     fn find(&self, key: &[u8], from: &mut usize) -> Option<i32> {
         #[allow(unused_assignments)]
         let mut to: usize = 0;
@@ -388,24 +391,8 @@ impl Cedar {
     }
 
     /// To return the collection of the common prefix in the dictionary with the `key` passed in.
-    pub fn common_prefix_search(&self, key: &str) -> Vec<(i32, usize, usize)> {
-        let key = key.as_bytes();
-        let mut from: usize = 0;
-
-        let mut result: Vec<(i32, usize, usize)> = Vec::new();
-        for i in 0..(key.len()) {
-            if let Some(value) = self.find(&key[i..i + 1], &mut from) {
-                if value == CEDAR_NO_VALUE {
-                    continue;
-                } else {
-                    result.push((value, i, from));
-                }
-            } else {
-                break;
-            }
-        }
-
-        return result;
+    pub fn common_prefix_search(&self, key: &str) -> Option<Vec<(i32, usize, usize)>> {
+        self.common_prefix_iter(key).map(Some).collect()
     }
 
     /// To return the list of words in the dictionary that has `key` as their prefix.
@@ -1018,11 +1005,17 @@ mod tests {
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        let result: Vec<i32> = cedar.common_prefix_search("abcdefg").iter().map(|x| x.0).collect();
+        let result: Vec<i32> = cedar
+            .common_prefix_search("abcdefg")
+            .unwrap()
+            .iter()
+            .map(|x| x.0)
+            .collect();
         assert_eq!(vec![0, 1, 2], result);
 
         let result: Vec<i32> = cedar
             .common_prefix_search("网球拍卖会")
+            .unwrap()
             .iter()
             .map(|x| x.0)
             .collect();
@@ -1030,6 +1023,7 @@ mod tests {
 
         let result: Vec<i32> = cedar
             .common_prefix_search("中华人民共和国")
+            .unwrap()
             .iter()
             .map(|x| x.0)
             .collect();
@@ -1037,6 +1031,7 @@ mod tests {
 
         let result: Vec<i32> = cedar
             .common_prefix_search("データ構造とアルゴリズム")
+            .unwrap()
             .iter()
             .map(|x| x.0)
             .collect();
@@ -1102,4 +1097,20 @@ mod tests {
         let result = cedar.exact_match_search("abc").map(|x| x.0);
         assert_eq!(Some(2), result);
     }
+
+    #[test]
+    fn test_unicode_han_sip() {
+        let dict = vec!["讥䶯䶰", "讥䶯䶰䶱䶲", "讥䶯䶰䶱䶲䶳䶴䶵𦡦"];
+
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        let result: Vec<i32> = cedar
+            .common_prefix_iter("讥䶯䶰䶱䶲䶳䶴䶵𦡦")
+            .map(|x| x.0)
+            .collect();
+        assert_eq!(vec![0, 1, 2], result);
+    }
+
 }
