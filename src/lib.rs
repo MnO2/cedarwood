@@ -209,17 +209,18 @@ impl Cedar {
     #[allow(dead_code)]
     pub fn build(&mut self, key_values: &[(&str, i32)]) {
         for (key, value) in key_values {
-            self.update(key, value);
+            self.update(key, *value);
         }
     }
 
-    pub fn update(&mut self, key: &str, value: &i32) {
+    /// Update the key for the value.
+    pub fn update(&mut self, key: &str, value: i32) {
         let from = 0;
         let pos = 0;
         self.update_(key.as_bytes(), value, from, pos);
     }
 
-    fn update_(&mut self, key: &[u8], value: &i32, mut from: usize, mut pos: usize) -> i32 {
+    fn update_(&mut self, key: &[u8], value: i32, mut from: usize, mut pos: usize) -> i32 {
         if from == 0 && key.len() == 0 {
             panic!("failed to insert zero-length key");
         }
@@ -313,6 +314,7 @@ impl Cedar {
         }
     }
 
+    /// Delete the key from the trie
     pub fn erase(&mut self, key: &str) {
         self.erase_(key.as_bytes())
     }
@@ -967,6 +969,33 @@ impl Cedar {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_insert_and_delete() {
+        let dict = vec!["a"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        let result = cedar.exact_match_search("ab").map(|x| x.0);
+        assert_eq!(None, result);
+
+        cedar.update("ab", 1);
+        let result = cedar.exact_match_search("ab").map(|x| x.0);
+        assert_eq!(Some(1), result);
+
+        cedar.erase("ab");
+        let result = cedar.exact_match_search("ab").map(|x| x.0);
+        assert_eq!(None, result);
+
+        cedar.update("abc", 2);
+        let result = cedar.exact_match_search("abc").map(|x| x.0);
+        assert_eq!(Some(2), result);
+
+        cedar.erase("abc");
+        let result = cedar.exact_match_search("abc").map(|x| x.0);
+        assert_eq!(None, result);
+    }
 
     #[test]
     fn test_common_prefix_search() {
