@@ -1113,4 +1113,19 @@ mod tests {
         assert_eq!(vec![0, 1, 2], result);
     }
 
+    #[test]
+    fn test_unicode_grapheme_cluster() {
+        let dict = vec!["a", "abc", "abcde\u{0301}"];
+
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        let result: Vec<i32> = cedar
+            .common_prefix_iter("abcde\u{0301}\u{1100}\u{1161}\u{AC00}")
+            .map(|x| x.0)
+            .collect();
+        assert_eq!(vec![0, 1, 2], result);
+    }
+
 }
