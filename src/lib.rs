@@ -1128,4 +1128,23 @@ mod tests {
         assert_eq!(vec![0, 1, 2], result);
     }
 
+    #[test]
+    fn test_erase() {
+        let dict = vec!["a", "ab", "abc"];
+        let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        cedar.erase("abc");
+        assert!(cedar.exact_match_search("abc").is_none());
+        assert!(cedar.exact_match_search("ab").is_some());
+        assert!(cedar.exact_match_search("a").is_some());
+
+        cedar.erase("ab");
+        assert!(cedar.exact_match_search("ab").is_none());
+        assert!(cedar.exact_match_search("a").is_some());
+
+        cedar.erase("a");
+        assert!(cedar.exact_match_search("a").is_none());
+    }
 }
