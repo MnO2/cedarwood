@@ -11,7 +11,7 @@ Add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cedar = "0.1"
+cedarwood = "0.1"
 ```
 
 then you are good to go. If you are using Rust 2015 you have to `extern crate darts` to your crate root as well.
