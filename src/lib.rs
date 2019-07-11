@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! cedarwood = "0.2"
+//! cedarwood = "0.3"
 //! ```
 //!
 //! then you are good to go. If you are using Rust 2015 you have to `extern crate cedarwood` to your crate root as well.
