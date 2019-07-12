@@ -593,18 +593,17 @@ impl Cedar {
         };
 
         if empty {
-            *head = idx;
-            self.blocks[idx as usize].prev = idx;
             self.blocks[idx as usize].next = idx;
+            self.blocks[idx as usize].prev = idx;
+            *head = idx;
         } else {
             self.blocks[idx as usize].prev = self.blocks[*head as usize].prev;
             self.blocks[idx as usize].next = *head;
 
-            *head = idx;
-
             let t = self.blocks[*head as usize].prev;
-            self.blocks[*head as usize].prev = idx;
             self.blocks[t as usize].next = idx;
+            self.blocks[*head as usize].prev = idx;
+            *head = idx;
         }
     }
 
@@ -640,6 +639,7 @@ impl Cedar {
 
         let is_empty = self.blocks_head_open == 0;
         let idx = (self.size >> 8) as i32;
+        debug_assert!(self.blocks[idx as usize].num > 1);
         self.push_block(idx, BlockType::Open, is_empty);
 
         self.size += 256;
@@ -666,10 +666,9 @@ impl Cedar {
         };
 
         let idx = e >> 8;
-
         let n = self.array[e as usize].clone();
-        self.blocks[idx as usize].num -= 1;
 
+        self.blocks[idx as usize].num -= 1;
         if self.blocks[idx as usize].num == 0 {
             if idx != 0 {
                 self.transfer_block(idx, BlockType::Closed, BlockType::Full, self.blocks_head_full == 0);
@@ -741,6 +740,7 @@ impl Cedar {
 
             // Move the block from 'Closed' to 'Open' since it has more than one free slot now.
             if self.blocks[idx as usize].num == 2 || self.blocks[idx as usize].trial == self.max_trial {
+                debug_assert!(self.blocks[idx as usize].num > 1);
                 if idx != 0 {
                     self.transfer_block(idx, BlockType::Closed, BlockType::Open, self.blocks_head_open == 0);
                 }
@@ -862,6 +862,7 @@ impl Cedar {
 
         // we still have available 'Open' blocks.
         if idx != 0 {
+            debug_assert!(self.blocks[idx as usize].num > 1);
             let bz = self.blocks[self.blocks_head_open as usize].prev;
             let nc = child.len() as i16;
 
@@ -874,7 +875,7 @@ impl Cedar {
                     loop {
                         let base = e ^ (child[0] as i32);
 
-                        let mut i = 0;
+                        let mut i = 1;
                         // iterate through the children to see if they are available: (check < 0)
                         while self.array[(base ^ (child[i] as i32)) as usize].check < 0 {
                             if i == child.len() - 1 {
@@ -891,32 +892,32 @@ impl Cedar {
                             break;
                         }
                     }
-
-                    // we broke out of the loop, that means we failed. We save the information in
-                    // `reject` for future pruning.
-                    self.blocks[idx as usize].reject = nc;
-                    if self.blocks[idx as usize].reject < self.reject[self.blocks[idx as usize].num as usize] {
-                        // put this stats into the global array of information as well.
-                        self.reject[self.blocks[idx as usize].num as usize] = self.blocks[idx as usize].reject;
-                    }
-
-                    let idx_ = self.blocks[idx as usize].next;
-
-                    self.blocks[idx as usize].trial += 1;
-
-                    // move this block to the 'Closed' block list since it has reached the max_trial
-                    if self.blocks[idx as usize].trial == self.max_trial {
-                        self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
-                    }
-
-                    // we have finsihed one round of this cyclic doubly-linked-list.
-                    if idx == bz {
-                        break;
-                    }
-
-                    // going to the next in this linked list group
-                    idx = idx_;
                 }
+
+                // we broke out of the loop, that means we failed. We save the information in
+                // `reject` for future pruning.
+                self.blocks[idx as usize].reject = nc;
+                if self.blocks[idx as usize].reject < self.reject[self.blocks[idx as usize].num as usize] {
+                    // put this stats into the global array of information as well.
+                    self.reject[self.blocks[idx as usize].num as usize] = self.blocks[idx as usize].reject;
+                }
+
+                let idx_ = self.blocks[idx as usize].next;
+
+                self.blocks[idx as usize].trial += 1;
+
+                // move this block to the 'Closed' block list since it has reached the max_trial
+                if self.blocks[idx as usize].trial == self.max_trial {
+                    self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
+                }
+
+                // we have finsihed one round of this cyclic doubly-linked-list.
+                if idx == bz {
+                    break;
+                }
+
+                // going to the next in this linked list group
+                idx = idx_;
             }
         }
 
