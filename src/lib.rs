@@ -61,6 +61,8 @@
 //! assert_eq!(vec![4], result);
 //! ```
 
+use smallvec::SmallVec;
+
 /// NInfo stores the information about the trie
 #[derive(Debug, Default, Clone)]
 struct NInfo {
@@ -813,8 +815,8 @@ impl Cedar {
     }
 
     // Collect the list of the children, and push the label as well if it is not terminal node.
-    fn set_child(&self, base: i32, mut c: u8, label: u8, not_terminal: bool) -> Vec<u8> {
-        let mut child: Vec<u8> = Vec::new();
+    fn set_child(&self, base: i32, mut c: u8, label: u8, not_terminal: bool) -> SmallVec<[u8; 256]> {
+        let mut child: SmallVec<[u8; 256]> = SmallVec::new();
 
         if c == 0 {
             child.push(c);
@@ -855,7 +857,7 @@ impl Cedar {
     }
 
     // For the case where multiple free slots are needed.
-    fn find_places(&mut self, child: &Vec<u8>) -> i32 {
+    fn find_places(&mut self, child: &[u8]) -> i32 {
         let mut idx = self.blocks_head_open;
 
         // we still have available 'Open' blocks.
@@ -938,7 +940,7 @@ impl Cedar {
         );
 
         // collect the list of children for the block that we are going to relocate.
-        let children: Vec<u8> = if flag {
+        let children = if flag {
             self.set_child(base_n, self.n_infos[from_n as usize].child, label_n, true)
         } else {
             self.set_child(base_p, self.n_infos[from_p as usize].child, 255, false)
