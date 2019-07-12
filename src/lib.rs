@@ -102,22 +102,24 @@ impl Block {
             prev: 0,
             next: 0,
             num: 256, // each of block has 256 free slots at the beginning
-            reject: 257,
+            reject: 257, // initially every block need to be fully iterated through so that we can reject it to be unusable.
             trial: 0,
             e_head: 0,
         }
     }
 }
 
+/// Blocks are marked as either of three categories, so that we can quickly decide if we can
+/// allocate it for use or not.
 enum BlockType {
-    Open,
-    Closed,
-    Full,
+    Open, // The block has spaces more than 1.
+    Closed, // The block is only left with one free slot
+    Full, // The block's slots are fully used.
 }
 
 /// `Cedar` holds all of the information about double array trie.
 pub struct Cedar {
-    array: Vec<Node>,
+    array: Vec<Node>, // storing the `base` and `check` info from the original paper.
     n_infos: Vec<NInfo>,
     blocks: Vec<Block>,
     reject: Vec<i16>,
@@ -127,13 +129,14 @@ pub struct Cedar {
     capacity: usize,
     size: usize,
     ordered: bool,
-    max_trial: i32,
+    max_trial: i32, // the parameter for cedar, it could be tuned for more, but the default is 1.
 }
 
 #[allow(dead_code)]
 const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 5;
 const CEDAR_NO_VALUE: i32 = std::i32::MAX - 5;
 
+/// Iterator for `common_prefix_search` 
 pub struct PrefixIter<'a> {
     cedar: &'a Cedar,
     key: &'a [u8],
@@ -168,6 +171,7 @@ impl<'a> Iterator for PrefixIter<'a> {
     }
 }
 
+/// Iterator for `common_prefix_predict`
 pub struct PrefixPredictIter<'a> {
     cedar: &'a Cedar,
     key: &'a [u8],
@@ -182,6 +186,8 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.from == 0 && self.p == 0 {
+            // To locate the prefix's position first, if it doesn't exist then that means we
+            // don't have do anything. `from` would serve as the cursor.
             if self.cedar.find(self.key, &mut self.from).is_some() {
                 self.root = self.from;
 
@@ -266,13 +272,14 @@ impl Cedar {
         }
     }
 
-    /// Update the key for the value.
+    /// Update the key for the value, it is public interface that works on &str
     pub fn update(&mut self, key: &str, value: i32) {
         let from = 0;
         let pos = 0;
         self.update_(key.as_bytes(), value, from, pos);
     }
 
+    // Update the key for the value, it is internal interface that works on &[u8] and cursor. 
     fn update_(&mut self, key: &[u8], value: i32, mut from: usize, mut pos: usize) -> i32 {
         if from == 0 && key.len() == 0 {
             panic!("failed to insert zero-length key");
@@ -325,12 +332,13 @@ impl Cedar {
         to
     }
 
-    // Find key from double array trie
+    // Find key from double array trie, with `from` as the cursor to traverse the nodes.
     fn find(&self, key: &[u8], from: &mut usize) -> Option<i32> {
         #[allow(unused_assignments)]
         let mut to: usize = 0;
         let mut pos = 0;
 
+        // recursively matching the key.
         while pos < key.len() {
             #[cfg(feature = "reduced-trie")]
             {
@@ -359,6 +367,8 @@ impl Cedar {
             }
         }
 
+        // return the value of the node if `check` is correctly marked fpr the ownership, otherwise
+        // it means no value is stored.
         let n = &self.array[(self.array[*from].base() ^ 0) as usize];
         if n.check != (*from as i32) {
             return Some(CEDAR_NO_VALUE);
@@ -367,11 +377,12 @@ impl Cedar {
         }
     }
 
-    /// Delete the key from the trie
+    /// Delete the key from the trie, the public interface that works on &str
     pub fn erase(&mut self, key: &str) {
         self.erase_(key.as_bytes())
     }
 
+    // Delete the key from the trie, the internal interface that works on &[u8]
     fn erase_(&mut self, key: &[u8]) {
         let mut from = 0;
 
@@ -445,6 +456,7 @@ impl Cedar {
         self.common_prefix_iter(key).map(Some).collect()
     }
 
+    /// To return an iterator to iterate through the list of words in the dictionary that has `key` as their prefix. 
     pub fn common_prefix_predict_iter<'a>(&'a self, key: &'a str) -> PrefixPredictIter<'a> {
         let key = key.as_bytes();
 
@@ -463,17 +475,21 @@ impl Cedar {
         self.common_prefix_predict_iter(key).map(Some).collect()
     }
 
+    // To get the cursor of the first leaf node starting by `from`
     fn begin(&self, mut from: usize, mut p: usize) -> (Option<i32>, usize, usize) {
         let base = self.array[from].base();
         let mut c = self.n_infos[from].child;
 
         if from == 0 {
             c = self.n_infos[(base ^ (c as i32)) as usize].sibling;
+
+            // if no sibling couldn be found from the virtual root, then we are done. 
             if c == 0 {
                 return (None, from, p);
             }
         }
 
+        // recursively traversing down to look for the first leaf.
         while c != 0 {
             from = (self.array[from].base() ^ (c as i32)) as usize;
             c = self.n_infos[from].child;
@@ -487,10 +503,12 @@ impl Cedar {
             }
         }
 
+        // To return the value of the leaf.
         let v = self.array[(self.array[from].base() ^ (c as i32)) as usize].base_;
         return (Some(v), from, p);
     }
 
+    // To move the cursor from one leaf to the next for the common_prefix_predict.
     fn next(&self, mut from: usize, mut p: usize, root: usize) -> (Option<i32>, usize, usize) {
         #[allow(unused_assignments)]
         let mut c: u8 = 0;
@@ -506,6 +524,7 @@ impl Cedar {
             c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
         }
 
+        // traversing up until there is a sibling or it has reached the root.
         while c == 0 && from != root {
             c = self.n_infos[from as usize].sibling;
             from = self.array[from as usize].check as usize;
@@ -514,10 +533,12 @@ impl Cedar {
         }
 
         if c != 0 {
+            // it has a sibling so we leverage on `begin` to traverse the subtree down again.
             from = (self.array[from].base() ^ (c as i32)) as usize;
             let (v_, from_, p_) = self.begin(from, p + 1);
             return (v_, from_, p_);
         } else {
+            // no more work since we couldn't find anything.
             return (None, from, p);
         }
     }
