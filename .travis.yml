@@ -23,6 +23,7 @@ script:
   - cargo fmt --all -- --check
   - cargo build
   - cargo test
+  - cargo test --features reduced-trie
 
 after_success:
   - |

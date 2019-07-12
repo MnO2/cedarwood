@@ -17,7 +17,7 @@ codecov = { repository = "MnO2/cedarwood" }
 
 [features]
 default = []
-#reduced-trie = []
+reduced-trie = []
 
 [dev-dependencies]
 criterion = "0.2"

@@ -304,6 +304,14 @@ impl Cedar {
         } else {
             self.follow(from, 0)
         };
+
+        #[cfg(feature = "reduced-trie")]
+        {
+            if self.array[to as usize].base_ == CEDAR_VALUE_LIMIT {
+                self.array[to as usize].base_ = 0;
+            }
+        }
+
         #[cfg(not(feature = "reduced-trie"))]
         let to = self.follow(from, 0);
 
@@ -1001,7 +1009,7 @@ impl Cedar {
                     if c == 0 {
                         break;
                     }
-                }     
+                }
             }
 
             if !flag && to_ == (from_n as i32) {
