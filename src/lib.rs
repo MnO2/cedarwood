@@ -982,42 +982,26 @@ impl Cedar {
             }
 
             self.array[to as usize].base_ = self.array[to_ as usize].base_;
+
             #[cfg(feature = "reduced-trie")]
-            {
-                if self.array[to as usize].base_ < 0 && children[i] != 0 {
-                    let mut c = self.n_infos[to_ as usize].child;
-
-                    self.n_infos[to as usize].child = c;
-
-                    loop {
-                        let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
-                        self.array[idx].check = to;
-                        c = self.n_infos[idx].sibling;
-
-                        if c == 0 {
-                            break;
-                        }
-                    }
-                }
-            }
-
+            let condition = self.array[to as usize].base_ < 0 && children[i] != 0;
             #[cfg(not(feature = "reduced-trie"))]
-            {
-                if self.array[to as usize].base_ > 0 && children[i] != 0 {
-                    let mut c = self.n_infos[to_ as usize].child;
+            let condition = self.array[to as usize].base_ > 0 && children[i] != 0;
 
-                    self.n_infos[to as usize].child = c;
+            if condition {
+                let mut c = self.n_infos[to_ as usize].child;
 
-                    loop {
-                        let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
-                        self.array[idx].check = to;
-                        c = self.n_infos[idx].sibling;
+                self.n_infos[to as usize].child = c;
 
-                        if c == 0 {
-                            break;
-                        }
+                loop {
+                    let idx = (self.array[to as usize].base() ^ (c as i32)) as usize;
+                    self.array[idx].check = to;
+                    c = self.n_infos[idx].sibling;
+
+                    if c == 0 {
+                        break;
                     }
-                }
+                }     
             }
 
             if !flag && to_ == (from_n as i32) {
