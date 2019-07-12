@@ -311,19 +311,28 @@ impl Cedar {
         self.array[to as usize].base_
     }
 
+    // To move in the trie by following the `label`, and insert the node if the node is not there,
+    // it is used by the `update` to populate the trie.
+    #[inline]
     fn follow(&mut self, from: usize, label: u8) -> i32 {
         let base = self.array[from].base();
 
         #[allow(unused_assignments)]
         let mut to = 0;
 
+        // the node is not there
         if base < 0 || self.array[(base ^ (label as i32)) as usize].check < 0 {
+            // allocate a e node
             to = self.pop_e_node(base, label, from as i32);
             let branch: i32 = to ^ (label as i32);
+
+            // maintain the info in ninfo
             self.push_sibling(from, branch, label, base >= 0);
         } else {
+            // the node is already there and the ownership is not `from`, therefore a conflict.
             to = base ^ (label as i32);
             if self.array[to as usize].check != (from as i32) {
+                // call `resolve` to relocate.
                 to = self.resolve(from, base, label);
             }
         }
@@ -542,6 +551,8 @@ impl Cedar {
         }
     }
 
+    // pop a block at idx from the linked-list of type `from`, specially handled if it is the last
+    // one in the linked-list.
     fn pop_block(&mut self, idx: i32, from: BlockType, last: bool) {
         let head: &mut i32 = match from {
             BlockType::Open => &mut self.blocks_head_open,
@@ -562,6 +573,8 @@ impl Cedar {
         }
     }
 
+    // return the block at idx to the linked-list of `to`, specially handled if the linked-list is
+    // empty
     fn push_block(&mut self, idx: i32, to: BlockType, empty: bool) {
         let head: &mut i32 = match to {
             BlockType::Open => &mut self.blocks_head_open,
@@ -624,6 +637,8 @@ impl Cedar {
         ((self.size >> 8) - 1) as i32
     }
 
+    // transfer the block at idx from the linked-list of `from` to the linked-list of `to`,
+    // specially handle the case where the destination linked-list is empty.
     fn transfer_block(&mut self, idx: i32, from: BlockType, to: BlockType, to_block_empty: bool) {
         let is_last = idx == self.blocks[idx as usize].next; //it's the last one if the next points to itself
         let is_empty = to_block_empty && (self.blocks[idx as usize].num != 0);
@@ -774,6 +789,8 @@ impl Cedar {
         }
     }
 
+    // Loop through the siblings to see which one reached the end first, which means it is the one
+    // with smaller in children size, and we should try ti relocate the smaller one.
     fn consult(&self, base_n: i32, base_p: i32, mut c_n: u8, mut c_p: u8) -> bool {
         loop {
             c_n = self.n_infos[(base_n ^ (c_n as i32)) as usize].sibling;
@@ -787,6 +804,7 @@ impl Cedar {
         c_p != 0
     }
 
+    // Collect the list of the children, and push the label as well if it is not terminal node.
     fn set_child(&self, base: i32, mut c: u8, label: u8, not_terminal: bool) -> Vec<u8> {
         let mut child: Vec<u8> = Vec::new();
 
@@ -824,40 +842,51 @@ impl Cedar {
             return self.blocks[self.blocks_head_open as usize].e_head;
         }
 
+        // the block is not enough, resize it and allocate it.
         self.add_block() << 8
     }
 
     // For the case where multiple free slots are needed.
     fn find_places(&mut self, child: &Vec<u8>) -> i32 {
         let mut idx = self.blocks_head_open;
+
+        // we still have available 'Open' blocks.
         if idx != 0 {
             let bz = self.blocks[self.blocks_head_open as usize].prev;
             let nc = child.len() as i16;
 
             loop {
-                // only proceed if the free slots are more than the number of children.
+                // only proceed if the free slots are more than the number of children. Also, we
+                // save the minimal number of attempts to fail in the `reject`, it only worths to
+                // try out this block if the number of children is less than that number.
                 if self.blocks[idx as usize].num >= nc && nc < self.blocks[idx as usize].reject {
                     let mut e = self.blocks[idx as usize].e_head;
                     loop {
                         let base = e ^ (child[0] as i32);
 
                         let mut i = 0;
+                        // iterate through the children to see if they are available: (check < 0)
                         while self.array[(base ^ (child[i] as i32)) as usize].check < 0 {
                             if i == child.len() - 1 {
+                                // we have found the available block.
                                 self.blocks[idx as usize].e_head = e;
                                 return e;
                             }
                             i += 1;
                         }
 
+                        // we save the next free block's information in `check`
                         e = -self.array[e as usize].check;
                         if e == self.blocks[idx as usize].e_head {
                             break;
                         }
                     }
 
+                    // we broke out of the loop, that means we failed. We save the information in
+                    // `reject` for future pruning.
                     self.blocks[idx as usize].reject = nc;
                     if self.blocks[idx as usize].reject < self.reject[self.blocks[idx as usize].num as usize] {
+                        // put this stats into the global array of information as well.
                         self.reject[self.blocks[idx as usize].num as usize] = self.blocks[idx as usize].reject;
                     }
 
@@ -870,6 +899,7 @@ impl Cedar {
                         self.transfer_block(idx, BlockType::Open, BlockType::Closed, self.blocks_head_closed == 0);
                     }
 
+                    // we have finsihed one round of this cyclic doubly-linked-list.
                     if idx == bz {
                         break;
                     }
@@ -886,6 +916,8 @@ impl Cedar {
     // resolve the conflict by moving one of the the nodes to a free block.
     fn resolve(&mut self, mut from_n: usize, base_n: i32, label_n: u8) -> i32 {
         let to_pn = base_n ^ (label_n as i32);
+
+        // the `base` and `from` for the conflicting one.
         let from_p = self.array[to_pn as usize].check;
         let base_p = self.array[from_p as usize].base();
 
@@ -897,12 +929,15 @@ impl Cedar {
             self.n_infos[from_p as usize].child,
         );
 
+        // collect the list of children for the block that we are going to relocate.
         let children: Vec<u8> = if flag {
             self.set_child(base_n, self.n_infos[from_n as usize].child, label_n, true)
         } else {
             self.set_child(base_p, self.n_infos[from_p as usize].child, 255, false)
         };
 
+        // decide which algorithm to allocate free block depending on the number of children we
+        // have.
         let mut base = if children.len() == 1 {
             self.find_place()
         } else {
@@ -931,6 +966,7 @@ impl Cedar {
             self.array[from as usize].base_ = base;
         }
 
+        // the actual work for relocating the chilren
         for i in 0..(children.len()) {
             let to = self.pop_e_node(base, children[i], from);
             let to_ = base_ ^ (children[i] as i32);
@@ -988,6 +1024,7 @@ impl Cedar {
                 from_n = to as usize;
             }
 
+            // clean up the space that was moved away from.
             if !flag && to_ == to_pn {
                 self.push_sibling(from_n, to_pn ^ (label_n as i32), label_n, true);
                 self.n_infos[to_ as usize].child = 0;
@@ -1012,6 +1049,7 @@ impl Cedar {
             }
         }
 
+        // return the position that is free now.
         if flag {
             base ^ (label_n as i32)
         } else {
