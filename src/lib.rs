@@ -101,7 +101,7 @@ impl Block {
         Block {
             prev: 0,
             next: 0,
-            num: 256, // each of block has 256 free slots at the beginning
+            num: 256,    // each of block has 256 free slots at the beginning
             reject: 257, // initially every block need to be fully iterated through so that we can reject it to be unusable.
             trial: 0,
             e_head: 0,
@@ -112,9 +112,9 @@ impl Block {
 /// Blocks are marked as either of three categories, so that we can quickly decide if we can
 /// allocate it for use or not.
 enum BlockType {
-    Open, // The block has spaces more than 1.
+    Open,   // The block has spaces more than 1.
     Closed, // The block is only left with one free slot
-    Full, // The block's slots are fully used.
+    Full,   // The block's slots are fully used.
 }
 
 /// `Cedar` holds all of the information about double array trie.
@@ -136,7 +136,7 @@ pub struct Cedar {
 const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 5;
 const CEDAR_NO_VALUE: i32 = std::i32::MAX - 5;
 
-/// Iterator for `common_prefix_search` 
+/// Iterator for `common_prefix_search`
 pub struct PrefixIter<'a> {
     cedar: &'a Cedar,
     key: &'a [u8],
@@ -279,7 +279,7 @@ impl Cedar {
         self.update_(key.as_bytes(), value, from, pos);
     }
 
-    // Update the key for the value, it is internal interface that works on &[u8] and cursor. 
+    // Update the key for the value, it is internal interface that works on &[u8] and cursor.
     fn update_(&mut self, key: &[u8], value: i32, mut from: usize, mut pos: usize) -> i32 {
         if from == 0 && key.len() == 0 {
             panic!("failed to insert zero-length key");
@@ -456,7 +456,7 @@ impl Cedar {
         self.common_prefix_iter(key).map(Some).collect()
     }
 
-    /// To return an iterator to iterate through the list of words in the dictionary that has `key` as their prefix. 
+    /// To return an iterator to iterate through the list of words in the dictionary that has `key` as their prefix.
     pub fn common_prefix_predict_iter<'a>(&'a self, key: &'a str) -> PrefixPredictIter<'a> {
         let key = key.as_bytes();
 
@@ -483,7 +483,7 @@ impl Cedar {
         if from == 0 {
             c = self.n_infos[(base ^ (c as i32)) as usize].sibling;
 
-            // if no sibling couldn be found from the virtual root, then we are done. 
+            // if no sibling couldn be found from the virtual root, then we are done.
             if c == 0 {
                 return (None, from, p);
             }
