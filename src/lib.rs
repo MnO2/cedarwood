@@ -181,6 +181,23 @@ pub struct PrefixPredictIter<'a> {
     value: Option<i32>,
 }
 
+impl<'a> PrefixPredictIter<'a> {
+    fn next_until_none(&mut self) -> Option<(i32, usize, usize)> {
+        while self.value.is_some() {
+            let result = (self.value.unwrap().clone(), self.p.clone(), self.from.clone());
+
+            let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
+            self.from = from_;
+            self.p = p_;
+            self.value = v_;
+
+            return Some(result);
+        }
+
+        return None;
+    }
+}
+
 impl<'a> Iterator for PrefixPredictIter<'a> {
     type Item = (i32, usize, usize);
 
@@ -196,31 +213,13 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
                 self.p = p_;
                 self.value = v_;
 
-                while self.value.is_some() {
-                    let result = (self.value.unwrap().clone(), self.p.clone(), self.from.clone());
-
-                    let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
-                    self.from = from_;
-                    self.p = p_;
-                    self.value = v_;
-
-                    return Some(result);
-                }
+                return self.next_until_none();
+            } else {
+                return None;
             }
         } else {
-            while self.value.is_some() {
-                let result = (self.value.unwrap().clone(), self.p.clone(), self.from.clone());
-
-                let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
-                self.from = from_;
-                self.p = p_;
-                self.value = v_;
-
-                return Some(result);
-            }
+            return self.next_until_none();
         }
-
-        return None;
     }
 }
 
