@@ -133,8 +133,8 @@ pub struct Cedar {
 }
 
 #[allow(dead_code)]
-const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 5;
-const CEDAR_NO_VALUE: i32 = std::i32::MAX - 5;
+const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 1;
+const CEDAR_NO_VALUE: i32 = -1;
 
 /// Iterator for `common_prefix_search`
 pub struct PrefixIter<'a> {
