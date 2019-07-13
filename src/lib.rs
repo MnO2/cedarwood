@@ -227,6 +227,7 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
 }
 
 impl Cedar {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut array: Vec<Node> = Vec::with_capacity(256);
         let n_infos: Vec<NInfo> = (0..256).map(|_| Default::default()).collect();
@@ -253,10 +254,10 @@ impl Cedar {
         blocks[0].e_head = 1;
 
         Cedar {
-            array: array,
-            n_infos: n_infos,
-            blocks: blocks,
-            reject: reject,
+            array,
+            n_infos,
+            blocks,
+            reject,
             blocks_head_full: 0,
             blocks_head_closed: 0,
             blocks_head_open: 0,
@@ -388,7 +389,7 @@ impl Cedar {
 
         // return the value of the node if `check` is correctly marked fpr the ownership, otherwise
         // it means no value is stored.
-        let n = &self.array[(self.array[*from].base() ^ 0) as usize];
+        let n = &self.array[(self.array[*from].base()) as usize];
         if n.check != (*from as i32) {
             Some(CEDAR_NO_VALUE)
         } else {
@@ -424,7 +425,7 @@ impl Cedar {
         }
 
         #[cfg(not(feature = "reduced-trie"))]
-        let mut e = self.array[from].base() ^ 0;
+        let mut e = self.array[from].base();
 
         #[allow(unused_assignments)]
         let mut has_sibling = false;
@@ -535,12 +536,12 @@ impl Cedar {
         #[cfg(feature = "reduced-trie")]
         {
             if self.array[from].base_ < 0 {
-                c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
+                c = self.n_infos[(self.array[from].base()) as usize].sibling;
             }
         }
         #[cfg(not(feature = "reduced-trie"))]
         {
-            c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
+            c = self.n_infos[(self.array[from].base()) as usize].sibling;
         }
 
         // traversing up until there is a sibling or it has reached the root.
