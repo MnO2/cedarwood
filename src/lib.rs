@@ -79,6 +79,7 @@ struct Node {
 }
 
 impl Node {
+    #[inline]
     fn base(&self) -> i32 {
         #[cfg(feature = "reduced-trie")]
         return -(self.base_ + 1);
@@ -155,7 +156,7 @@ impl<'a> Iterator for PrefixIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.i < self.key.len() {
-            if let Some(value) = self.cedar.find(&self.key[self.i..self.i + 1], &mut self.from) {
+            if let Some(value) = self.cedar.find(&self.key[self.i..=self.i], &mut self.from) {
                 if value == CEDAR_NO_VALUE {
                     self.i += 1;
                     continue;
@@ -169,7 +170,7 @@ impl<'a> Iterator for PrefixIter<'a> {
             }
         }
 
-        return None;
+        None
     }
 }
 
@@ -185,8 +186,9 @@ pub struct PrefixPredictIter<'a> {
 
 impl<'a> PrefixPredictIter<'a> {
     fn next_until_none(&mut self) -> Option<(i32, usize, usize)> {
+        #[allow(clippy::never_loop)]
         while self.value.is_some() {
-            let result = (self.value.unwrap().clone(), self.p.clone(), self.from.clone());
+            let result = (self.value.unwrap(), self.p, self.from);
 
             let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
             self.from = from_;
@@ -196,7 +198,7 @@ impl<'a> PrefixPredictIter<'a> {
             return Some(result);
         }
 
-        return None;
+        None
     }
 }
 
@@ -226,6 +228,7 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
 }
 
 impl Cedar {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut array: Vec<Node> = Vec::with_capacity(256);
         let n_infos: Vec<NInfo> = (0..256).map(|_| Default::default()).collect();
@@ -252,10 +255,10 @@ impl Cedar {
         blocks[0].e_head = 1;
 
         Cedar {
-            array: array,
-            n_infos: n_infos,
-            blocks: blocks,
-            reject: reject,
+            array,
+            n_infos,
+            blocks,
+            reject,
             blocks_head_full: 0,
             blocks_head_closed: 0,
             blocks_head_open: 0,
@@ -282,7 +285,7 @@ impl Cedar {
 
     // Update the key for the value, it is internal interface that works on &[u8] and cursor.
     fn update_(&mut self, key: &[u8], value: i32, mut from: usize, mut pos: usize) -> i32 {
-        if from == 0 && key.len() == 0 {
+        if from == 0 && key.is_empty() {
             panic!("failed to insert zero-length key");
         }
 
@@ -387,11 +390,11 @@ impl Cedar {
 
         // return the value of the node if `check` is correctly marked fpr the ownership, otherwise
         // it means no value is stored.
-        let n = &self.array[(self.array[*from].base() ^ 0) as usize];
+        let n = &self.array[(self.array[*from].base()) as usize];
         if n.check != (*from as i32) {
-            return Some(CEDAR_NO_VALUE);
+            Some(CEDAR_NO_VALUE)
         } else {
-            return Some(n.base_);
+            Some(n.base_)
         }
     }
 
@@ -414,7 +417,7 @@ impl Cedar {
         let mut e: i32 = if self.array[from].base_ >= 0 {
             from as i32
         } else {
-            self.array[from].base() ^ 0
+            self.array[from].base()
         };
 
         #[cfg(feature = "reduced-trie")]
@@ -423,7 +426,7 @@ impl Cedar {
         }
 
         #[cfg(not(feature = "reduced-trie"))]
-        let mut e = self.array[from].base() ^ 0;
+        let mut e = self.array[from].base();
 
         #[allow(unused_assignments)]
         let mut has_sibling = false;
@@ -451,9 +454,9 @@ impl Cedar {
         let mut from = 0;
 
         if let Some(value) = self.find(&key, &mut from) {
-            return Some((value, key.len(), from));
+            Some((value, key.len(), from))
         } else {
-            return None;
+            None
         }
     }
 
@@ -463,7 +466,7 @@ impl Cedar {
 
         PrefixIter {
             cedar: self,
-            key: key,
+            key,
             from: 0,
             i: 0,
         }
@@ -534,12 +537,12 @@ impl Cedar {
         #[cfg(feature = "reduced-trie")]
         {
             if self.array[from].base_ < 0 {
-                c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
+                c = self.n_infos[(self.array[from].base()) as usize].sibling;
             }
         }
         #[cfg(not(feature = "reduced-trie"))]
         {
-            c = self.n_infos[(self.array[from].base() ^ 0) as usize].sibling;
+            c = self.n_infos[(self.array[from].base()) as usize].sibling;
         }
 
         // traversing up until there is a sibling or it has reached the root.
@@ -554,10 +557,10 @@ impl Cedar {
             // it has a sibling so we leverage on `begin` to traverse the subtree down again.
             from = (self.array[from].base() ^ (c as i32)) as usize;
             let (v_, from_, p_) = self.begin(from, p + 1);
-            return (v_, from_, p_);
+            (v_, from_, p_)
         } else {
             // no more work since we couldn't find anything.
-            return (None, from, p);
+            (None, from, p)
         }
     }
 
