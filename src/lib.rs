@@ -62,6 +62,7 @@
 //! ```
 
 use smallvec::SmallVec;
+use std::fmt;
 
 /// NInfo stores the information about the trie
 #[derive(Debug, Default, Clone)]
@@ -121,6 +122,7 @@ enum BlockType {
 }
 
 /// `Cedar` holds all of the information about double array trie.
+#[derive(Clone)]
 pub struct Cedar {
     array: Vec<Node>, // storing the `base` and `check` info from the original paper.
     n_infos: Vec<NInfo>,
@@ -135,11 +137,18 @@ pub struct Cedar {
     max_trial: i32, // the parameter for cedar, it could be tuned for more, but the default is 1.
 }
 
+impl fmt::Debug for Cedar {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Cedar(size={}, ordered={})", self.size, self.ordered)
+    }
+}
+
 #[allow(dead_code)]
 const CEDAR_VALUE_LIMIT: i32 = std::i32::MAX - 1;
 const CEDAR_NO_VALUE: i32 = -1;
 
 /// Iterator for `common_prefix_search`
+#[derive(Clone)]
 pub struct PrefixIter<'a> {
     cedar: &'a Cedar,
     key: &'a [u8],
@@ -175,6 +184,7 @@ impl<'a> Iterator for PrefixIter<'a> {
 }
 
 /// Iterator for `common_prefix_predict`
+#[derive(Clone)]
 pub struct PrefixPredictIter<'a> {
     cedar: &'a Cedar,
     key: &'a [u8],
