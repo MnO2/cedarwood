@@ -463,6 +463,10 @@ impl Cedar {
         let mut from = 0;
 
         if let Some(value) = self.find(&key, &mut from) {
+            if value == CEDAR_NO_VALUE {
+                return None;
+            }
+
             Some((value, key.len(), from))
         } else {
             None
@@ -1325,8 +1329,8 @@ mod tests {
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        for s in dict.iter() {
-            assert!(cedar.exact_match_search(s).is_some());
+        for (k, s) in dict.iter().enumerate() {
+            assert_eq!(cedar.exact_match_search(s).map(|x| x.0), Some(k as i32));
         }
     }
 
@@ -1345,8 +1349,8 @@ mod tests {
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        for s in dict.iter() {
-            assert!(cedar.exact_match_search(s).is_some());
+        for (k, s) in dict.iter().enumerate() {
+            assert_eq!(cedar.exact_match_search(s).map(|x| x.0), Some(k as i32));
         }
     }
 
