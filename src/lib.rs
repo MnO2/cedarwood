@@ -1349,4 +1349,24 @@ mod tests {
             assert!(cedar.exact_match_search(s).is_some());
         }
     }
+
+    #[test]
+    fn test_mass_erase() {
+        let mut rng = thread_rng();
+        let mut dict: Vec<String> = Vec::with_capacity(1000);
+        for _ in 0..1000 {
+            let chars: String = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(30).collect();
+
+            dict.push(chars);
+        }
+
+        let key_values: Vec<(&str, i32)> = dict.iter().enumerate().map(|(k, s)| (s.as_ref(), k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        for s in dict.iter() {
+            cedar.erase(s);
+            assert!(cedar.exact_match_search(s).is_none());
+        }
+    }
 }
