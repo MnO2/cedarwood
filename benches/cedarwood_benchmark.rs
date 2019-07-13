@@ -47,14 +47,10 @@ fn bench_common_prefix_predict() {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("cedar build", |b| b.iter(|| bench_cedar_build()));
-    c.bench_function("cedar exact_match_search", |b| b.iter(|| bench_exact_match_search()));
-    c.bench_function("cedar common_prefix_search", |b| {
-        b.iter(|| bench_common_prefix_search())
-    });
-    c.bench_function("cedar common_prefix_predict", |b| {
-        b.iter(|| bench_common_prefix_predict())
-    });
+    c.bench_function("cedar build", |b| b.iter(bench_cedar_build));
+    c.bench_function("cedar exact_match_search", |b| b.iter(bench_exact_match_search));
+    c.bench_function("cedar common_prefix_search", |b| b.iter(bench_common_prefix_search));
+    c.bench_function("cedar common_prefix_predict", |b| b.iter(bench_common_prefix_predict));
 }
 
 criterion_group!(benches, criterion_benchmark);
