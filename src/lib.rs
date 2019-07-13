@@ -148,7 +148,7 @@ pub struct PrefixIter<'a> {
 }
 
 impl<'a> Iterator for PrefixIter<'a> {
-    type Item = (i32, usize, usize);
+    type Item = (i32, usize);
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, Some(self.key.len()))
@@ -161,7 +161,7 @@ impl<'a> Iterator for PrefixIter<'a> {
                     self.i += 1;
                     continue;
                 } else {
-                    let result = Some((value, self.i, self.from));
+                    let result = Some((value, self.i));
                     self.i += 1;
                     return result;
                 }
@@ -185,10 +185,10 @@ pub struct PrefixPredictIter<'a> {
 }
 
 impl<'a> PrefixPredictIter<'a> {
-    fn next_until_none(&mut self) -> Option<(i32, usize, usize)> {
+    fn next_until_none(&mut self) -> Option<(i32, usize)> {
         #[allow(clippy::never_loop)]
         while self.value.is_some() {
-            let result = (self.value.unwrap(), self.p, self.from);
+            let result = (self.value.unwrap(), self.p);
 
             let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
             self.from = from_;
@@ -203,7 +203,7 @@ impl<'a> PrefixPredictIter<'a> {
 }
 
 impl<'a> Iterator for PrefixPredictIter<'a> {
-    type Item = (i32, usize, usize);
+    type Item = (i32, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.from == 0 && self.p == 0 {
@@ -486,7 +486,7 @@ impl Cedar {
     }
 
     /// To return the collection of the common prefix in the dictionary with the `key` passed in.
-    pub fn common_prefix_search(&self, key: &str) -> Option<Vec<(i32, usize, usize)>> {
+    pub fn common_prefix_search(&self, key: &str) -> Option<Vec<(i32, usize)>> {
         self.common_prefix_iter(key).map(Some).collect()
     }
 
@@ -505,7 +505,7 @@ impl Cedar {
     }
 
     /// To return the list of words in the dictionary that has `key` as their prefix.
-    pub fn common_prefix_predict(&self, key: &str) -> Option<Vec<(i32, usize, usize)>> {
+    pub fn common_prefix_predict(&self, key: &str) -> Option<Vec<(i32, usize)>> {
         self.common_prefix_predict_iter(key).map(Some).collect()
     }
 
