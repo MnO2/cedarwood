@@ -217,16 +217,17 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
                 self.p = p_;
                 self.value = v_;
 
-                return self.next_until_none();
+                self.next_until_none()
             } else {
-                return None;
+                None
             }
         } else {
-            return self.next_until_none();
+            self.next_until_none()
         }
     }
 }
 
+#[allow(clippy::cast_lossless)]
 impl Cedar {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -483,7 +484,7 @@ impl Cedar {
 
         PrefixPredictIter {
             cedar: self,
-            key: key,
+            key,
             from: 0,
             p: 0,
             root: 0,
@@ -526,7 +527,7 @@ impl Cedar {
 
         // To return the value of the leaf.
         let v = self.array[(self.array[from].base() ^ (c as i32)) as usize].base_;
-        return (Some(v), from, p);
+        (Some(v), from, p)
     }
 
     // To move the cursor from one leaf to the next for the common_prefix_predict.
