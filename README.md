@@ -1,6 +1,6 @@
 # cedarwood
 
-Efficiently-updatable double-array trie in Rust (ported from cedar). This library is still in alpha, feedbacks are welcomed. 
+Efficiently-updatable double-array trie in Rust (ported from cedar). This library is tested with reasonably enough of randomized tests, but it is considered as beta since it is not yet tested in high-pressured production environment. Please let me know if you have good use cases to prove its stability. 
 
 [![Build Status](https://travis-ci.com/MnO2/cedarwood.svg?branch=master)](https://travis-ci.org/MnO2/cedarwood)
 [![codecov](https://codecov.io/gh/MnO2/cedarwood/branch/master/graph/badge.svg)](https://codecov.io/gh/MnO2/cedarwood)
