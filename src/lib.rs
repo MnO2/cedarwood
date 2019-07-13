@@ -1056,6 +1056,9 @@ impl Cedar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+    use std::iter;
 
     #[test]
     fn test_insert_and_delete() {
@@ -1291,5 +1294,44 @@ mod tests {
         assert!(cedar.exact_match_search("中华").is_some());
         assert!(cedar.exact_match_search("中华人民").is_some());
         assert!(cedar.exact_match_search("中华人民共和国").is_some());
+    }
+
+    #[test]
+    fn test_quickcheck_like() {
+        let mut rng = thread_rng();
+        let mut dict: Vec<String> = Vec::with_capacity(1000);
+        for _ in 0..1000 {
+            let chars: String = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(30).collect();
+
+            dict.push(chars);
+        }
+
+        let key_values: Vec<(&str, i32)> = dict.iter().enumerate().map(|(k, s)| (s.as_ref(), k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        for s in dict.iter() {
+            assert!(cedar.exact_match_search(s).is_some());
+        }
+    }
+
+    #[test]
+    fn test_quickcheck_like_with_deep_trie() {
+        let mut rng = thread_rng();
+        let mut dict: Vec<String> = Vec::with_capacity(1000);
+        let mut s = String::new();
+        for _ in 0..1000 {
+            let c: char = rng.sample(Alphanumeric);
+            s.push(c);
+            dict.push(s.clone());
+        }
+
+        let key_values: Vec<(&str, i32)> = dict.iter().enumerate().map(|(k, s)| (s.as_ref(), k as i32)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_values);
+
+        for s in dict.iter() {
+            assert!(cedar.exact_match_search(s).is_some());
+        }
     }
 }

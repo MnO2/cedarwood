@@ -21,6 +21,7 @@ reduced-trie = []
 
 [dev-dependencies]
 criterion = "0.2"
+rand = "0.7"
 
 [[bench]]
 name = "cedarwood_benchmark"
