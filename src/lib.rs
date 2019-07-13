@@ -229,6 +229,7 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
 
 #[allow(clippy::cast_lossless)]
 impl Cedar {
+    /// Initialize the Cedar for further use.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut array: Vec<Node> = Vec::with_capacity(256);
@@ -270,6 +271,7 @@ impl Cedar {
         }
     }
 
+    /// Build the double array trie from the given key value pairs
     #[allow(dead_code)]
     pub fn build(&mut self, key_values: &[(&str, i32)]) {
         for (key, value) in key_values {
@@ -408,6 +410,7 @@ impl Cedar {
     fn erase_(&mut self, key: &[u8]) {
         let mut from = 0;
 
+        // move the cursor to the right place and use erase__ to delete it.
         if self.find(&key, &mut from).is_some() {
             self.erase__(from);
         }
@@ -435,14 +438,19 @@ impl Cedar {
             let n = self.array[from].clone();
             has_sibling = self.n_infos[(n.base() ^ (self.n_infos[from].child as i32)) as usize].sibling != 0;
 
+            // if the node has siblings, then remove `e` from the sibling.
             if has_sibling {
                 self.pop_sibling(from as i32, n.base(), (n.base() ^ e) as u8);
             }
 
+            // maintain the data structures.
             self.push_e_node(e);
             e = from as i32;
+
+            // traverse to the parent.
             from = self.array[from].check as usize;
 
+            // if it has sibling then this layer has more than one nodes, then we are done.
             if has_sibling {
                 break;
             }
@@ -673,6 +681,7 @@ impl Cedar {
         let n = self.array[e as usize].clone();
 
         self.blocks[idx as usize].num -= 1;
+        // move the block at idx to the correct linked-list depending the free slots it still have.
         if self.blocks[idx as usize].num == 0 {
             if idx != 0 {
                 self.transfer_block(idx, BlockType::Closed, BlockType::Full, self.blocks_head_full == 0);
@@ -761,6 +770,7 @@ impl Cedar {
         self.n_infos[e as usize] = Default::default();
     }
 
+    // push the `label` into the sibling chain
     fn push_sibling(&mut self, from: usize, base: i32, label: u8, has_child: bool) {
         let keep_order: bool = if self.ordered {
             label > self.n_infos[from].child
@@ -789,6 +799,7 @@ impl Cedar {
         self.n_infos[(base ^ (label as i32)) as usize].sibling = sibling;
     }
 
+    // remove the `label` from the sibling chain.
     #[allow(dead_code)]
     fn pop_sibling(&mut self, from: i32, base: i32, label: u8) {
         let mut c: (*mut u8) = &mut self.n_infos[from as usize].child;
