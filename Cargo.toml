@@ -33,4 +33,4 @@ required-features = []
 all-features = true
 
 [dependencies]
-smallvec = "0.6"
+smallvec = "1.0"
