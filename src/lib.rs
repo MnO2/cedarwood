@@ -1238,10 +1238,7 @@ mod tests {
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        let result: Vec<i32> = cedar
-            .common_prefix_iter("讥䶯䶰䶱䶲䶳䶴䶵𦡦")
-            .map(|x| x.0)
-            .collect();
+        let result: Vec<i32> = cedar.common_prefix_iter("讥䶯䶰䶱䶲䶳䶴䶵𦡦").map(|x| x.0).collect();
         assert_eq!(vec![0, 1, 2], result);
     }
 
