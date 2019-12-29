@@ -333,7 +333,7 @@ impl Cedar {
         #[cfg(not(feature = "reduced-trie"))]
         let to = self.follow(from, 0);
 
-        self.array[to as usize].base_ += value;
+        self.array[to as usize].base_ = value;
         self.array[to as usize].base_
     }
 
@@ -1383,13 +1383,13 @@ mod tests {
 
     #[test]
     fn test_duplication() {
-        let dict = vec!["些许端", "些須", "些须", "亜", "亝", "亞", "亞丁", "亞丁港"];
+        let dict = vec!["些许端", "些須", "些须", "亜", "亝", "亞", "亞", "亞丁", "亞丁港"];
         let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        assert_eq!(cedar.exact_match_search("亞").map(|t| t.0), Some(5));
-        assert_eq!(cedar.exact_match_search("亞丁港").map(|t| t.0), Some(7));
+        assert_eq!(cedar.exact_match_search("亞").map(|t| t.0), Some(6));
+        assert_eq!(cedar.exact_match_search("亞丁港").map(|t| t.0), Some(8));
         assert_eq!(cedar.exact_match_search("亝").map(|t| t.0), Some(4));
         assert_eq!(cedar.exact_match_search("些須").map(|t| t.0), Some(1));
     }
