@@ -1383,14 +1383,14 @@ mod tests {
 
     #[test]
     fn test_duplication() {
-        let dict = vec!["些许端", "些須", "些须", "亜", "亝", "亞", "亞", "亞丁", "亞丁港"];
+        let dict = vec!["些许端", "些須", "些须", "亜", "亝", "亞", "亞丁", "亞丁港"];
         let key_values: Vec<(&str, i32)> = dict.into_iter().enumerate().map(|(k, s)| (s, k as i32)).collect();
         let mut cedar = Cedar::new();
         cedar.build(&key_values);
 
-        assert!(cedar.exact_match_search("亞").is_some());
-        assert!(cedar.exact_match_search("亞丁港").is_some());
-        assert!(cedar.exact_match_search("亝").is_some());
-        assert!(cedar.exact_match_search("些須").is_some());
+        assert_eq!(cedar.exact_match_search("亞").map(|t| t.0), Some(5));
+        assert_eq!(cedar.exact_match_search("亞丁港").map(|t| t.0), Some(7));
+        assert_eq!(cedar.exact_match_search("亝").map(|t| t.0), Some(4));
+        assert_eq!(cedar.exact_match_search("些須").map(|t| t.0), Some(1));
     }
 }
