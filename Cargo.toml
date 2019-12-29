@@ -2,7 +2,7 @@
 name = "cedarwood"
 description = "efficiently-updatable double-array trie in Rust (ported from cedar)"
 repository = "https://github.com/MnO2/cedarwood"
-version = "0.4.3"
+version = "0.4.4"
 license = "BSD-2-Clause"
 authors = ["Paul Meng <me@paulme.ng>"]
 readme = "README.md"
