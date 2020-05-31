@@ -197,8 +197,8 @@ pub struct PrefixPredictIter<'a> {
 impl<'a> PrefixPredictIter<'a> {
     fn next_until_none(&mut self) -> Option<(i32, usize)> {
         #[allow(clippy::never_loop)]
-        while self.value.is_some() {
-            let result = (self.value.unwrap(), self.p);
+        while let Some(value) = self.value {
+            let result = (value, self.p);
 
             let (v_, from_, p_) = self.cedar.next(self.from, self.p, self.root);
             self.from = from_;
