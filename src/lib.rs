@@ -237,6 +237,48 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
     }
 }
 
+#[derive(Clone)]
+pub struct ScanIter<'a> {
+    cedar: &'a Cedar,
+    text: &'a [u8],
+    from: usize,
+    i: usize,
+    base: usize
+}
+
+impl<'a> Iterator for ScanIter<'a> {
+    type Item = (i32, usize,usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        while self.base < self.text.len() {
+            let limit = self.text.len() - self.base;
+            let slice = &self.text[self.base..self.text.len()];
+
+            while self.i < limit {
+                if let Some(value) = self.cedar.find(&slice[self.i..=self.i], &mut self.from) {
+                    if value == CEDAR_NO_VALUE {
+                        self.i += 1;
+                        continue;
+                    } else {
+                        let result = Some((value, self.base, self.base + self.i + 1));
+                        self.i += 1;
+                        return result;
+                    }
+                } else {
+                    break;
+                }
+            }
+
+            self.from = 0;
+            self.i = 0;
+            self.base += 1;
+        }
+
+        None
+    }
+}
+
 #[allow(clippy::cast_lossless)]
 impl Cedar {
     /// Initialize the Cedar for further use.
@@ -517,6 +559,22 @@ impl Cedar {
     /// To return the list of words in the dictionary that has `key` as their prefix.
     pub fn common_prefix_predict(&self, key: &str) -> Option<Vec<(i32, usize)>> {
         self.common_prefix_predict_iter(key).map(Some).collect()
+    }
+
+    pub fn common_prefix_scan_itr<'a>(&'a self, text: &'a str) -> ScanIter<'a> {
+        let text = text.as_bytes();
+
+        ScanIter {
+            cedar: self,
+            text,
+            from: 0,
+            i:0,
+            base:0
+        }
+    }
+
+    pub fn common_prefix_scan(&self, text:&str) -> Option<Vec<(i32,usize,usize)>>{
+        self.common_prefix_scan_itr(text).map(Some).collect()
     }
 
     // To get the cursor of the first leaf node starting by `from`
@@ -1392,5 +1450,50 @@ mod tests {
         assert_eq!(cedar.exact_match_search("亞丁港").map(|t| t.0), Some(8));
         assert_eq!(cedar.exact_match_search("亝").map(|t| t.0), Some(4));
         assert_eq!(cedar.exact_match_search("些須").map(|t| t.0), Some(1));
+    }
+
+    #[test]
+    fn test_scan () {
+        let mut cedar = Cedar::new();
+        let text = "foo foo bar";
+
+        cedar.update("fo", 0);
+        cedar.update("foo", 1);
+        cedar.update("ba", 2);
+        cedar.update("bar", 3);
+
+        let matches = cedar.common_prefix_scan_itr(&text);
+
+        let res:Vec<(&str,i32,usize,usize)> = matches.map(|m| (&text[m.1..m.2],m.0,m.1,m.2)).collect();
+
+        assert_eq!(res[0].0, "fo");
+        assert_eq!(res[0].1, 0);
+        assert_eq!(res[0].2, 0);
+        assert_eq!(res[0].3, 2);
+
+        assert_eq!(res[1].0, "foo");
+        assert_eq!(res[1].1, 1);
+        assert_eq!(res[1].2, 0);
+        assert_eq!(res[1].3, 3);
+
+        assert_eq!(res[2].0, "fo");
+        assert_eq!(res[2].1, 0);
+        assert_eq!(res[2].2, 4);
+        assert_eq!(res[2].3, 6);
+
+        assert_eq!(res[3].0, "foo");
+        assert_eq!(res[3].1, 1);
+        assert_eq!(res[3].2, 4);
+        assert_eq!(res[3].3, 7);
+
+        assert_eq!(res[4].0, "ba");
+        assert_eq!(res[4].1, 2);
+        assert_eq!(res[4].2, 8);
+        assert_eq!(res[4].3, 10);
+
+        assert_eq!(res[5].0, "bar");
+        assert_eq!(res[5].1, 3);
+        assert_eq!(res[5].2, 8);
+        assert_eq!(res[5].3, 11);
     }
 }
