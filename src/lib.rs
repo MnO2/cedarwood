@@ -421,8 +421,10 @@ impl Cedar {
         let mut from = 0;
 
         // move the cursor to the right place and use erase__ to delete it.
-        if self.find(&key, &mut from).is_some() {
-            self.erase__(from);
+        if let Some(v) = self.find(&key, &mut from) {
+            if v != CEDAR_NO_VALUE {
+                self.erase__(from);
+            }
         }
     }
 
@@ -1275,6 +1277,23 @@ mod tests {
 
         cedar.erase("a");
         assert!(cedar.exact_match_search("a").is_none());
+    }
+
+    #[test]
+    fn test_erase_on_internal_key() {
+        let mut cedar = Cedar::new();
+
+        cedar.update("aa", 0);
+        assert!(cedar.exact_match_search("aa").is_some());
+        cedar.update("ab", 1);
+        assert!(cedar.exact_match_search("ab").is_some());
+
+        cedar.erase("a");
+        assert!(cedar.exact_match_search("a").is_none());
+        cedar.erase("aa");
+        assert!(cedar.exact_match_search("aa").is_none());
+        cedar.erase("ab");
+        assert!(cedar.exact_match_search("ab").is_none());
     }
 
     #[test]
