@@ -1346,9 +1346,9 @@ mod tests {
         let mut rng = thread_rng();
         let mut dict: Vec<String> = Vec::with_capacity(1000);
         for _ in 0..1000 {
-            let chars: String = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(30).collect();
-
-            dict.push(chars);
+            let chars: Vec<u8> = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(30).collect();
+            let s = String::from_utf8(chars).unwrap();
+            dict.push(s);
         }
 
         let key_values: Vec<(&str, i32)> = dict.iter().enumerate().map(|(k, s)| (s.as_ref(), k as i32)).collect();
@@ -1366,7 +1366,7 @@ mod tests {
         let mut dict: Vec<String> = Vec::with_capacity(1000);
         let mut s = String::new();
         for _ in 0..1000 {
-            let c: char = rng.sample(Alphanumeric);
+            let c: char = rng.sample(Alphanumeric) as char;
             s.push(c);
             dict.push(s.clone());
         }
@@ -1385,9 +1385,10 @@ mod tests {
         let mut rng = thread_rng();
         let mut dict: Vec<String> = Vec::with_capacity(1000);
         for _ in 0..1000 {
-            let chars: String = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(30).collect();
+            let chars: Vec<u8> = iter::repeat(()).map(|()| rng.sample(Alphanumeric)).take(30).collect();
+            let s = String::from_utf8(chars).unwrap();
 
-            dict.push(chars);
+            dict.push(s);
         }
 
         let key_values: Vec<(&str, i32)> = dict.iter().enumerate().map(|(k, s)| (s.as_ref(), k as i32)).collect();
