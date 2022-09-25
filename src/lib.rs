@@ -421,7 +421,7 @@ impl Cedar {
         let mut from = 0;
 
         // move the cursor to the right place and use erase__ to delete it.
-        if let Some(v) = self.find(&key, &mut from) {
+        if let Some(v) = self.find(key, &mut from) {
             if v != CEDAR_NO_VALUE {
                 self.erase__(from);
             }
@@ -474,7 +474,7 @@ impl Cedar {
         let key = key.as_bytes();
         let mut from = 0;
 
-        if let Some(value) = self.find(&key, &mut from) {
+        if let Some(value) = self.find(key, &mut from) {
             if value == CEDAR_NO_VALUE {
                 return None;
             }
