@@ -45,7 +45,7 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cedarwood"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "criterion",
  "rand",
