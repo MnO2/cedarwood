@@ -1,5 +1,5 @@
 use cedarwood::Cedar;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn build_cedar() -> Cedar {
     let dict = vec![
@@ -23,30 +23,45 @@ fn build_cedar() -> Cedar {
     cedar
 }
 
-fn bench_cedar_build() {
-    let _cedar = build_cedar();
-}
-
-fn bench_exact_match_search() {
-    let cedar = build_cedar();
-    let _ret = cedar.exact_match_search("中华人民");
-}
-
-fn bench_common_prefix_search() {
-    let cedar = build_cedar();
-    let _ret = cedar.common_prefix_search("中华人民");
-}
-
-fn bench_common_prefix_predict() {
-    let cedar = build_cedar();
-    let _ret = cedar.common_prefix_predict("中");
-}
-
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("cedar build", |b| b.iter(bench_cedar_build));
-    c.bench_function("cedar exact_match_search", |b| b.iter(bench_exact_match_search));
-    c.bench_function("cedar common_prefix_search", |b| b.iter(bench_common_prefix_search));
-    c.bench_function("cedar common_prefix_predict", |b| b.iter(bench_common_prefix_predict));
+    c.bench_function("cedar build", |b| b.iter(|| black_box(build_cedar())));
+
+    c.bench_function("cedar exact_match_search", |b| {
+        let cedar = build_cedar();
+        b.iter(|| black_box(cedar.exact_match_search(black_box("中华人民"))))
+    });
+
+    c.bench_function("cedar common_prefix_search", |b| {
+        let cedar = build_cedar();
+        b.iter(|| black_box(cedar.common_prefix_search(black_box("中华人民"))))
+    });
+
+    c.bench_function("cedar common_prefix_search (iter)", |b| {
+        let cedar = build_cedar();
+        b.iter(|| {
+            let mut count = 0i32;
+            for r in cedar.common_prefix_iter(black_box("中华人民")) {
+                count += r.0;
+            }
+            black_box(count)
+        })
+    });
+
+    c.bench_function("cedar common_prefix_predict", |b| {
+        let cedar = build_cedar();
+        b.iter(|| black_box(cedar.common_prefix_predict(black_box("中"))))
+    });
+
+    c.bench_function("cedar common_prefix_predict (iter)", |b| {
+        let cedar = build_cedar();
+        b.iter(|| {
+            let mut count = 0i32;
+            for r in cedar.common_prefix_predict_iter(black_box("中")) {
+                count += r.0;
+            }
+            black_box(count)
+        })
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);
