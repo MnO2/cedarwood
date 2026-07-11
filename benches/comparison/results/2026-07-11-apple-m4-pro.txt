@@ -1,0 +1,40 @@
+cedarwood comparison raw output
+date_utc=2026-07-11
+os=macOS 26.1; build 25B78; arch arm64
+cpu=Apple M4 Pro
+rustc=rustc 1.94.1 (e408947bf 2026-03-25); binary: rustc; commit-hash: e408947bfd200af42db322daf0fadfe7e26d3bd1; commit-date: 2026-03-25; host: aarch64-apple-darwin; release: 1.94.1; LLVM version: 21.1.8
+cargo=cargo 1.94.1 (29ea6fb6a 2026-03-24)
+profile=release opt-level=3 lto=thin codegen-units=1 debug=false incremental=false
+cedarwood_revision=655b4406b3e664fe50358aa406d474880b76c35e
+cedarwood_worktree=dirty
+cedarwood_layout=default
+cedarwood_source_sha256=d99ad0b88d694f5d8a6270421903b66571651cf67718372f2ffcb77178a49285
+harness_source_sha256=489cd86c01cdc23166cec6b0e0015382786479a55c7752cfd55acc0f07a64f00
+shared_support_sha256=c9a5e9c301416fd775af9a815a54b7c42e2d3bc0799cba4eadf735b878dbe92b
+comparison_lock_sha256=71d1b7209ff3b042dae23f662e648a062a5dbe86f142a64a14580c868b10d4da
+dataset=benches/macro-benchmark/dict.txt
+dataset_sha256=139519822fe8ab9e10d9d07e68ea0451045380aedaf54ecc51e2a28c6b42a13f
+unique_keys=349045
+hit_sample=4096
+miss_sample=4096
+scan_bytes=65537
+scan_character_boundaries=21847
+build_statistic=median of 3 fresh constructions
+exact_statistic=median of 7 samples x 1024 rounds
+scan_statistic=median of 5 samples x 32 rounds
+memory_method=net live heap bytes requested from System by the constructed data structure; corpus and benchmark inputs excluded
+cpp_cedar=not measured (shared-schema C++ adapter is not implemented and cedarpp.h is unavailable)
+
+implementation,mutable,build_ms,exact_hit_mops,exact_miss_mops,prefix_scan_mib_s,owned_heap_mib,exact_method,scan_method,verification
+cedarwood 0.5.0,true,31.125,62.360,49.729,213.64,20.157,native exact lookup,common-prefix search at each UTF-8 character boundary,passed
+fst 0.4.7,false,57.781,9.002,9.047,unsupported,5.000,native exact lookup,unsupported,passed
+daachorse 3.0.2,false,188.424,34.367,16.732,259.66,19.729,anchored full-span Aho-Corasick match,native overlapping Aho-Corasick scan,passed
+crawdad 0.4.0,false,1254.716,88.108,95.575,289.38,8.250,native exact lookup,common-prefix search at each UTF-8 character boundary,passed
+yada 0.7.0,false,362.260,56.519,41.887,313.20,5.908,native exact lookup,common-prefix search at each UTF-8 character boundary,passed
+std HashMap,true,7.121,57.000,97.332,unsupported,19.407,native exact lookup,unsupported,passed
+
+verification_exact_hit_checksum=714667590
+verification_exact_misses=4096
+verification_scan_matches=26339
+verification_scan_value_checksum=4389337292
+allocator_word_size=64

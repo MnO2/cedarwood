@@ -1,0 +1,20 @@
+[package]
+name = "cedarwood-comparison"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+cedarwood = { path = "../..", default-features = false, features = ["std"] }
+crawdad = "=0.4.0"
+daachorse = "=3.0.2"
+fst = "=0.4.7"
+sha2 = "=0.10.9"
+yada = "=0.7.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = false
+incremental = false
