@@ -1,0 +1,25 @@
+[package]
+name = "cedarwood-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[features]
+reduced-trie = ["cedarwood/reduced-trie"]
+
+[dependencies]
+cedarwood-test-support = { path = "../test-support" }
+libfuzzer-sys = "0.4"
+
+[dependencies.cedarwood]
+path = ".."
+
+[[bin]]
+name = "stateful_operations"
+path = "fuzz_targets/stateful_operations.rs"
+test = false
+doc = false
+bench = false
