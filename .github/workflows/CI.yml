@@ -1,51 +1,19 @@
-on: [push, pull_request]
-
 name: CI
 
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --all-features
-
-  test:
-    name: Test Suite
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Check build with default features
-        run: cargo build
-      - name: Test
-        run: cargo test --all-features --all --benches
-
-  codecov:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
-      - name: Run cargo-tarpaulin
-        run: cargo tarpaulin --all-features --out xml
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{secrets.CODECOV_TOKEN}}
-      - name: Archive code coverage results
-        uses: actions/upload-artifact@v4
-        with:
-          name: code-coverage-report
-          path: cobertura.xml
-
-  fmt:
+  format:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
@@ -54,3 +22,186 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+      - run: cargo fmt --manifest-path test-support/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path fuzz/Cargo.toml -- --check
+
+  clippy:
+    name: Clippy (${{ matrix.layout }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: default
+            args: ""
+          - layout: reduced-trie
+            args: "--features reduced-trie"
+          - layout: no_std
+            args: "--no-default-features"
+          - layout: no_std + reduced-trie
+            args: "--no-default-features --features reduced-trie"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets --locked ${{ matrix.args }} -- -D warnings
+
+  test:
+    name: Test (${{ matrix.layout }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: default
+            args: ""
+          - layout: reduced-trie
+            args: "--features reduced-trie"
+          - layout: no_std
+            args: "--no-default-features"
+          - layout: no_std + reduced-trie
+            args: "--no-default-features --features reduced-trie"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --lib --locked ${{ matrix.args }}
+      - run: cargo test --test stateful_operations --locked ${{ matrix.args }}
+
+  platform:
+    name: Test default (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --lib --locked
+
+  docs:
+    name: Rustdoc (${{ matrix.features }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - features: all features
+            args: "--all-features"
+          - features: no_std
+            args: "--no-default-features"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo doc --no-deps --locked ${{ matrix.args }}
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  msrv:
+    name: MSRV (${{ matrix.layout }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: default
+            args: ""
+          - layout: reduced-trie
+            args: "--features reduced-trie"
+          - layout: no_std
+            args: "--no-default-features"
+          - layout: no_std + reduced-trie
+            args: "--no-default-features --features reduced-trie"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.62.0
+      - run: cargo +1.62.0 check --lib --locked ${{ matrix.args }}
+
+  # Review these tool pins quarterly and for upstream Miri/cargo-fuzz advisories. Update them
+  # together with the Phase 3 commands in the roadmap, after rerunning both trie layouts locally.
+  miri:
+    name: Miri (${{ matrix.layout }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: default
+            features: ""
+          - layout: reduced-trie
+            features: "--features reduced-trie"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-07-10
+          components: miri
+      - run: cargo +nightly-2026-07-10 miri test --locked ${{ matrix.features }}
+
+  fuzz-smoke:
+    name: Stateful fuzz smoke
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-07-10
+      - run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - run: cargo +nightly-2026-07-10 fuzz run stateful_operations -- -runs=10000
+      - run: cargo +nightly-2026-07-10 fuzz run stateful_operations --features reduced-trie -- -runs=10000
+
+  benchmark-smoke:
+    name: Benchmark smoke (${{ matrix.layout }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layout: default
+            features: ""
+          - layout: reduced-trie
+            features: "--features reduced-trie"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo bench --bench cedarwood_benchmark --locked ${{ matrix.features }} -- --test
+
+  comparison-and-package:
+    name: Comparison and package checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compile comparison harness
+        run: cargo check --manifest-path benches/comparison/Cargo.toml --locked
+      - name: Verify checked-in comparison table
+        working-directory: benches/comparison
+        run: cargo run --locked -- --verify-readme results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt ../../README.md
+      - name: Inspect and build package
+        shell: bash
+        run: |
+          cargo package --list --locked | tee package-files.txt
+          for path in Cargo.toml Cargo.lock CHANGELOG.md README.md LICENSE src/lib.rs docs/roadmap-to-1.0.md docs/serialization.md; do
+            grep -Fx "$path" package-files.txt
+          done
+          if grep -q '^benches/' package-files.txt; then
+            echo 'development benchmark files must not be packaged' >&2
+            exit 1
+          fi
+          cargo package --locked
+
+  codecov:
+    name: Code coverage
+    if: github.event_name == 'push' && github.repository == 'MnO2/cedarwood'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-tarpaulin --version 0.31.2 --locked
+      - run: cargo tarpaulin --locked --all-features --out xml
+      - uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
