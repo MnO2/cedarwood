@@ -26,6 +26,10 @@ This means each transition is a single XOR plus one comparison -- extremely fast
 
 To store an associated value for a key, cedarwood adds a virtual "terminal" edge with label `0` at the end of each key. The value is stored in `base[t]` where `t = base[s] XOR 0 = base[s]`. The terminal node is recognized by its `check` field pointing back to the parent.
 
+Because label `0` has structural meaning, the public byte-key API rejects stored keys containing
+`0x00`. The shared public value range is `0..=i32::MAX - 2`; this keeps layout-specific sentinels
+outside user data.
+
 ## cedarwood's Data Structures
 
 ### Node
@@ -112,6 +116,37 @@ Inserting a key follows the same traversal as lookup, but at each step, if the t
 
 The `push_sibling` / `pop_sibling` functions maintain the sorted sibling chain in `NInfo`, which enables the ordered traversal needed for predictive search.
 
+### Direct sorted construction
+
+`Cedar::from_sorted` and `Cedar::from_sorted_bytes` validate strictly sorted unique input, then
+partition it into ranges that share each byte prefix. For every parent, the builder knows the full
+set of child labels before allocating anything. It finds one compatible base, claims the complete
+sibling set through the normal block allocator, writes the sibling chain, and schedules each child
+range iteratively. It therefore avoids per-key conflict resolution while preserving the free lists,
+block categories, parent checks, and `NInfo` links required by later `update` and `erase` calls.
+
+In reduced-trie mode, a range containing only one completed key stores the value in its leaf. A key
+that is also a prefix of another key receives the structural terminal child alongside its byte
+children, matching incremental promotion semantics.
+
+### Persistence safety boundary
+
+Serialization records the node, node-info, block, reject, configuration, and list-head state with
+explicit little-endian fields. A private `persistence::v1` module owns versioned wire DTOs; decoder
+records are never aliases for live `Node`, `NInfo`, or `Block` structs. Length-bounded DTOs are
+converted into a private unvalidated trie, then vector relationships, free and block lists, parent
+ownership, sibling chains, sentinels, reachability, values, and entry count are validated before
+the trie is returned. This establishes the invariants relied on by unchecked query indexing. See
+[Binary Serialization Format](serialization.md) for the stable format and compatibility policy.
+
+### Portability boundary
+
+The crate is `no_std` when its default features are disabled. Core trie storage and traversal use
+`core` plus `alloc`; only the persistence codec, stream and path helpers, persistence error type,
+and `std::error::Error` integrations are gated by `std`. The `reduced-trie` layout flag is
+orthogonal, producing four CI-checked build combinations. Rust 1.62.0 is the declared and tested
+minimum toolchain.
+
 ### Deletion (`erase`)
 
 Deletion reverses insertion: it walks up from the terminal node, removing each node that has no remaining siblings, until it reaches a node that still has other children. Freed nodes are returned to the block's free list via `push_e_node`.
@@ -142,6 +177,10 @@ When compiled with `--features reduced-trie`, cedarwood stores values directly i
 The trade-off:
 - **Pro**: fewer nodes, less memory for dictionaries where most keys are leaves.
 - **Con**: slightly more complex insertion logic when a leaf becomes an internal node.
+
+The 2026-07-10 Phase 5 benchmark retained the default layout: reduced-trie occupied fewer slots but
+was slower for exact hit and miss queries, while its build, prefix-scan, and churn results were
+mixed. See `benches/results/2026-07-10-phase5-apple-m4-pro.md` for the measurements.
 
 ## Memory Layout
 

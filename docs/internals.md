@@ -99,6 +99,12 @@ The array grows by doubling (`capacity += capacity`), giving amortized O(1) for 
 
 A conflict occurs when `follow` tries to place a child at `base[from] XOR label`, but that slot is already owned by a different parent. The resolution strategy:
 
+Direct sorted construction bypasses `follow` and `resolve`. Since each sorted prefix range reveals
+all sibling labels at once, `allocate_bulk_siblings` chooses one base with `find_place` or
+`find_places`, claims every label with `pop_e_node`, and writes the complete ordered `NInfo` chain.
+Using `pop_e_node` is essential: it keeps the per-block free list, free count, and Open/Closed/Full
+membership valid for later incremental mutation.
+
 ### Step 1: Identify the Parties
 
 ```
@@ -170,7 +176,7 @@ Removes a label from the sibling chain. Walks the chain from `child` through `si
 
 ## `max_trial` Parameter
 
-The `max_trial` field (default: 1) controls how many times a block can be probed by `find_places` before it is demoted from Open to Closed. A lower value makes the search faster but may waste more space; a higher value searches more thoroughly.
+The `max_trial` field (default: 1) controls how many times a block can be probed by `find_places` before it is demoted from Open to Closed. A lower value makes the search faster but may waste more space; a higher value searches more thoroughly. `Cedar::builder().max_trial(...)` exposes this setting and rejects nonpositive values.
 
 With `max_trial = 1`, a block gets at most one chance per insertion cycle. After being probed once unsuccessfully, it moves to Closed and won't be searched again for multi-child allocations until a deletion reopens it.
 
@@ -179,6 +185,9 @@ With `max_trial = 1`, a block gets at most one chance per insertion cycle. After
 With the `reduced-trie` feature enabled, the key behavioral differences are:
 
 1. **Values in leaves**: When a leaf node stores a value, it is placed directly in `base_` (as a non-negative integer) instead of creating a separate terminal child. The sentinel `CEDAR_VALUE_LIMIT = i32::MAX - 1` marks "allocated but no value yet."
+
+   The public API reserves this sentinel and `i32::MAX`; accepted user values stop at
+   `i32::MAX - 2`, matching the default layout's public contract.
 
 2. **Leaf-to-internal promotion**: When inserting a key that extends an existing leaf, the existing value must be moved to a new terminal child before the leaf can become an internal node.
 
@@ -206,3 +215,13 @@ From a leaf node, finds the next leaf in depth-first order:
 4. If we reach `root` without finding a sibling, the traversal is complete.
 
 This gives an efficient in-order traversal without recursion or an explicit stack -- the trie's structure itself provides the traversal state through `check` (parent) and `sibling` links.
+
+## Unsafe traversal boundary
+
+The exact and predictive query hot paths use unchecked vector indexing only after construction or
+deserialization has established the double-array invariants. Persistence first decodes into private
+wire records, applies allocation limits, converts into an unexposed trie, and validates array
+lengths, parent links, sibling chains, reachability, free lists, block lists, and value sentinels.
+Checked indexing remains in `PrefixIter::next` because the measured unchecked candidate did not
+produce a statistically significant scan improvement. Stateful reference-model tests, Miri, and
+bounded fuzzing cover both layouts.
