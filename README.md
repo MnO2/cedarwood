@@ -145,19 +145,19 @@ regressions. A legacy C++ cedar benchmark is retained in
 
 ### Implementation comparison
 
-These results are comparative, not universal. They are from one run on 2026-07-11 UTC using an
-Apple M4 Pro, macOS 26.1, and rustc 1.94.1. Lower is better for construction time and owned heap;
+These results are comparative, not universal. They are from one run on 2026-07-12 UTC using an
+Apple M4 Pro, macOS 26.1, and rustc 1.97.0. Lower is better for construction time and owned heap;
 higher is better for throughput. The historical cedarwood 0.5.0 run remains checked in separately
 for provenance but is not mixed into this table.
 
 | Implementation | Mutable | Build (ms) | Exact hit (M/s) | Exact miss (M/s) | Prefix scan (MiB/s) | Owned heap (MiB) |
 |---|:---:|---:|---:|---:|---:|---:|
-| cedarwood 0.6.0 | yes | 33.105 | 57.733 | 57.979 | 246.76 | 20.157 |
-| fst 0.4.7 | no | 50.112 | 10.671 | 10.651 | unsupported | 5.000 |
-| daachorse 3.0.2 | no | 169.108 | 38.817 | 19.242 | 324.70 | 19.729 |
-| crawdad 0.4.0 | no | 1131.762 | 91.358 | 104.355 | 309.10 | 8.250 |
-| yada 0.7.0 | no | 308.049 | 65.034 | 47.672 | 389.22 | 5.908 |
-| `std::collections::HashMap` | yes | 6.748 | 63.304 | 105.877 | unsupported | 19.407 |
+| cedarwood 0.6.0 | yes | 41.475 | 51.519 | 51.299 | 213.36 | 20.157 |
+| fst 0.4.7 | no | 120.145 | 5.638 | 8.499 | unsupported | 5.000 |
+| daachorse 3.0.2 | no | 192.994 | 17.228 | 16.921 | 256.71 | 19.729 |
+| crawdad 0.4.0 | no | 1256.916 | 86.833 | 99.425 | 311.33 | 8.250 |
+| yada 0.7.0 | no | 351.602 | 58.548 | 44.172 | 326.64 | 5.908 |
+| `std::collections::HashMap` | yes | 7.248 | 57.420 | 99.095 | unsupported | 19.407 |
 | C++ cedar | yes | not measured | not measured | not measured | not measured | not measured |
 
 The static implementations do not provide cedarwood's incremental update/erase capability.
