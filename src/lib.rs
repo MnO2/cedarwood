@@ -3332,7 +3332,7 @@ mod tests {
         assert_round_trip(&Cedar::new());
 
         let mut keys = Vec::new();
-        for prefix in [b'a', b'b'] {
+        for prefix in *b"ab" {
             keys.push(vec![prefix]);
             keys.extend((1_u8..=u8::MAX).map(|label| vec![prefix, label]));
         }
