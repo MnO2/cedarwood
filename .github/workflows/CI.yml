@@ -183,11 +183,12 @@ jobs:
       - name: Inspect and build package
         shell: bash
         run: |
-          cargo package --list --locked | tee package-files.txt
+          package_files="${RUNNER_TEMP}/cedarwood-package-files.txt"
+          cargo package --list --locked | tee "$package_files"
           for path in Cargo.toml Cargo.lock CHANGELOG.md README.md LICENSE src/lib.rs docs/roadmap-to-1.0.md docs/serialization.md; do
-            grep -Fx "$path" package-files.txt
+            grep -Fx "$path" "$package_files"
           done
-          if grep -q '^benches/' package-files.txt; then
+          if grep -q '^benches/' "$package_files"; then
             echo 'development benchmark files must not be packaged' >&2
             exit 1
           fi
