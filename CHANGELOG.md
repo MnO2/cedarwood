@@ -2,7 +2,7 @@
 
 All notable changes to cedarwood are documented here. The project follows semantic versioning.
 
-## [0.6.0] - Unreleased
+## [0.6.0] - 2026-07-12
 
 Version 0.6 is a breaking release. It makes invalid input explicit, adds a byte-oriented API and
 safe persistence, and replaces synthetic performance claims with reproducible measurements.
@@ -56,4 +56,4 @@ safe persistence, and replaces synthetic performance claims with reproducible me
 6. Enable the default `std` feature when using persistence. Embedded users can disable default
    features and provide an allocator.
 
-[0.6.0]: https://github.com/MnO2/cedarwood/compare/0.5.0...HEAD
+[0.6.0]: https://github.com/MnO2/cedarwood/compare/0.5.0...v0.6.0
