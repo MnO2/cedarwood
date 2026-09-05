@@ -4,7 +4,7 @@ This document explains how cedarwood implements an efficiently-updatable double-
 
 ## Background: Tries and Double-Array Tries
 
-A **trie** (prefix tree) is a tree data structure where each edge is labeled with a character. A path from the root to a node spells out a key. Tries give O(k) lookup time for a key of length k, regardless of how many keys are stored.
+A **trie** (prefix tree) is a tree data structure where each edge is labeled with a symbol. Cedarwood uses bytes as symbols, so a UTF-8 character can span several edges. A path from the root to a node spells out a key. Tries give O(k) lookup time for a key of k bytes, regardless of how many keys are stored.
 
 The naive pointer-based trie uses one node object per character, with pointers to children. This wastes memory and causes poor cache behavior because nodes are scattered across the heap.
 
@@ -70,8 +70,8 @@ struct Block {
 The array is divided into **blocks** of 256 elements each. Each block tracks:
 
 - **prev / next**: pointers forming a cyclic doubly-linked list with other blocks of the same category.
-- **num**: count of free slots in this block (0-256).
-- **reject**: minimum number of children that will definitely fail to fit in this block. This is a heuristic pruning parameter.
+- **num**: count of free slots in a non-root block (0-256). Block 0 adds one reserved-root slot to its free count.
+- **reject**: heuristic threshold used to skip sibling sets after unsuccessful placement attempts; it is not proof that a different set of labels cannot fit.
 - **trial**: how many times `find_places` has probed this block without success.
 - **e_head**: index of the first free element in this block.
 
@@ -79,11 +79,13 @@ Blocks are categorized into three linked lists:
 
 | Category | Condition | Purpose |
 |----------|-----------|---------|
-| **Open** | num > 1 | Preferred for multi-child allocation |
-| **Closed** | num == 1 | Only useful for single-child allocation |
+| **Open** | num > 1 and trial < max_trial | Eligible for multi-child allocation |
+| **Closed** | num == 1, or num > 1 and trial == max_trial | Eligible for single-child allocation |
 | **Full** | num == 0 | No free slots, skipped entirely |
 
-This three-way classification lets cedarwood skip entire 256-element regions that can't possibly fit, dramatically reducing search time during insertion.
+These lists contain only non-root blocks. Block 0 is handled separately and never joins a category
+list. Classification and heuristic pruning reduce the number of regions searched during insertion;
+a block can be skipped for speed even when it has enough free slots.
 
 ## Operations
 
@@ -114,7 +116,7 @@ Inserting a key follows the same traversal as lookup, but at each step, if the t
 2. If `base[from] XOR label` points to a free slot, claim it directly.
 3. If the target slot is occupied by a **different** parent (a conflict), call `resolve` to relocate one of the conflicting sets of children.
 
-The `push_sibling` / `pop_sibling` functions maintain the sorted sibling chain in `NInfo`, which enables the ordered traversal needed for predictive search.
+The `push_sibling` / `pop_sibling` functions maintain the sibling chain in `NInfo`. When `ordered` is true, the chain stays sorted and predictive search returns results in byte-lexicographic order. Predictive search also works with unordered siblings.
 
 ### Direct sorted construction
 
@@ -204,12 +206,18 @@ The `array` and `n_infos` vectors are parallel -- index `i` in both refers to th
 
 ## Complexity
 
-| Operation | Time | Space |
-|-----------|------|-------|
-| Lookup | O(k) | -- |
-| Insert | O(k) amortized | O(1) amortized |
-| Delete | O(k) | O(1) |
-| Common prefix search | O(k) | O(matches) |
-| Predictive search | O(k + results) | O(results) |
+Let `k` be the query/key length in bytes, `m` the number of returned matches, and `s` the number of
+nodes visited in the matching predictive subtree. Space below excludes existing trie storage.
 
-Where k is the key length in bytes. Insert is amortized O(k) because conflict resolution may need to relocate children, but the relocation cost is bounded by the smaller sibling set size and amortizes over multiple insertions.
+| Operation | Time | Additional space |
+|-----------|------|------------------|
+| Exact lookup | O(k) | O(1) |
+| Insert | Traversal O(k), plus placement search, relocation, and possible vector growth | Up to O(k) new nodes; vector growth may reallocate existing storage |
+| Delete | O(k), with a fixed 256-label alphabet | O(1); freed slots are retained for reuse |
+| Common-prefix iterator / collection | O(k) | O(1) / O(m) |
+| Predictive iterator / collection | O(k + s) | O(1) / O(m) |
+
+Insertion commonly behaves close to linear in key length, but the code does not establish an
+amortized O(k) bound: placement can search multiple blocks, relocation updates child ownership,
+and growing vectors copies existing storage. Predictive traversal also visits intermediate nodes,
+so one long completion can require many steps even when only one result is returned.

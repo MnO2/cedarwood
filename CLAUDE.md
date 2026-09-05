@@ -19,7 +19,10 @@ cargo doc --open                         # generate and view rustdoc
 ## Project Structure
 
 ```
-src/lib.rs          -- entire library: data structures, Cedar impl, tests
+src/lib.rs          -- library: data structures, Cedar impl, unit tests
+tests/              -- public API and stateful regression tests
+test-support/       -- shared reference model for property tests and fuzzing
+fuzz/               -- cargo-fuzz targets
 benches/
   cedarwood_benchmark.rs   -- criterion micro-benchmarks
   macro-benchmark/dict.txt -- shared real-dictionary benchmark corpus
@@ -30,7 +33,8 @@ docs/                      -- architecture and design documentation
 
 ## Code Conventions
 
-- Single-file library (`src/lib.rs`). All types, methods, and tests live here.
+- Single-file library (`src/lib.rs`). Public types, implementation, and unit tests live here;
+  integration tests and shared fuzz/property-test support live in their own directories.
 - Internal structs (`NInfo`, `Node`, `Block`) are private. The public surface includes `Cedar`,
   `CedarBuilder`, `CedarError`, `CedarPersistenceError`, query/entry iterators, `MemoryStats`, and
   the shared value and persistence-load bounds.
@@ -50,9 +54,14 @@ docs/                      -- architecture and design documentation
 ## Key Implementation Notes
 
 - The double-array stores `base` and `check` in `Node`. Negative values in `base`/`check` indicate free slots forming a doubly-linked free list.
-- Blocks are 256-element chunks classified as Open (>1 free), Closed (1 free), or Full (0 free), managed as cyclic doubly-linked lists.
+- Non-root blocks are 256-element chunks classified as Open (>1 free and trial < max_trial),
+  Closed (1 free or trial == max_trial), or Full (0 free), managed as cyclic doubly-linked lists.
+  Block 0 never joins these lists; its `num` includes one reserved-root slot, so actual free slots
+  are `num - 1`. Preserve this convention when updating free lists and persistence validation.
 - Conflict resolution (`resolve`) relocates the smaller sibling set to minimize work.
-- The `reject` heuristic prunes block searches: if a block's minimum rejection threshold exceeds the number of children needed, the block is skipped.
+- The `reject` heuristic searches a block only when it has enough free slots and the requested
+  sibling count is strictly below its rejection threshold. The threshold is a speed/space
+  heuristic, not a proof that a different set of labels cannot fit.
 - `Cedar::from_sorted` and `from_sorted_bytes` validate strict byte order and uniqueness, then
   allocate each complete sibling set through the existing block/free-list machinery. They must not
   regress mutation-after-build invariants in either layout.

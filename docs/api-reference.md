@@ -12,6 +12,12 @@ standard error integration. With `default-features = false`, the mutation and qu
 Cedar stores nonempty byte keys. Byte `0x00` is reserved as the terminal label, so stored keys
 cannot contain it. The `&str` APIs are thin UTF-8 wrappers around the byte APIs.
 
+String matching uses exact UTF-8 bytes: it does not normalize Unicode, fold case, or compare
+grapheme clusters. Normalize keys and queries consistently before insertion and lookup if needed.
+For arbitrary binary data that can contain `0x00`, choose an encoding that excludes NUL and preserves
+the prefixes your application needs; raw serialized IP addresses, for example, cannot be inserted
+directly in general.
+
 Values must be between `MIN_VALUE` (`0`) and `MAX_VALUE` (`i32::MAX - 2`), inclusive. This range is
 identical in the default and `reduced-trie` layouts. Empty keys, terminal bytes, out-of-range
 values, and invalid builder settings return `CedarError`; they do not mutate the trie.
@@ -73,12 +79,15 @@ assert!(!cedar.erase("missing"));
 ```
 
 - `build(&[(&str, i32)]) -> Result<(), CedarError>` validates the entire input before inserting
-  any item. Duplicate keys use the last supplied value.
+  any item. It adds to the current trie without clearing existing entries; duplicate keys use the
+  last supplied value. Empty input leaves the trie unchanged.
 - `build_bytes(&[(&[u8], i32)]) -> Result<(), CedarError>` is the byte-key counterpart.
 - `update(&str, i32)` and `update_bytes(&[u8], i32)` insert or overwrite one entry.
 - `erase(&str) -> bool` and `erase_bytes(&[u8]) -> bool` report whether an entry was removed.
 
-`build` remains the incremental construction API in 0.6.
+`build` remains the incremental construction API in 0.6. Deletion makes node slots available for
+reuse by later insertions, but does not shrink the allocated vectors. To release unused capacity,
+rebuild the remaining entries into a new trie and drop the old one; there is no compaction method.
 
 ## Exact lookup
 
@@ -120,6 +129,23 @@ assert!(cedar.common_prefix_search("xyz").is_empty());
 `common_prefix_iter` and `common_prefix_iter_bytes` provide the same results without allocating a
 result vector. `PrefixIter` implements `Iterator<Item = (i32, usize)>` and `Clone`.
 
+The position is a zero-based **byte** index, not a character count or an exclusive slice endpoint:
+
+```rust
+use cedarwood::Cedar;
+
+let mut cedar = Cedar::new();
+cedar.update("网", 7)?;
+let query = "网球";
+let (value, last_byte) = cedar.common_prefix_iter(query).next().unwrap();
+assert_eq!((value, last_byte), (7, 2));
+assert_eq!(query.get(..last_byte + 1), Some("网"));
+# Ok::<(), cedarwood::CedarError>(())
+```
+
+If entries were inserted through byte APIs, a match can end inside a UTF-8 character even when the
+query is a `&str`. Use byte slices or checked `str::get` before slicing such results.
+
 ## Predictive search
 
 `common_prefix_predict` finds stored keys that begin with a query prefix. Its byte counterpart is
@@ -144,10 +170,19 @@ assert_eq!(values, vec![0, 1, 2]);
 `PrefixPredictIter` implements `Iterator<Item = (i32, usize)>` and `Clone`. Prediction order follows
 sibling order; do not depend on it when `ordered(false)` is used.
 
+A key equal to the prefix has depth zero. For example, the byte depth for `"网球"` below prefix
+`"网"` is `3`. The returned tuples contain values and depths, not reconstructed keys. String query
+wrappers also include matching entries inserted through byte APIs, even when those stored keys
+are not valid UTF-8; use `entries_str()` when UTF-8 validation is needed.
+
 ## Entry iteration
 
 `entries()` reconstructs every stored key and yields `(Vec<u8>, i32)`. Its order reflects current
 double-array placement and is not stable across mutations or versions.
+
+The iterator reuses a key buffer while traversing branches and copies a key only when yielding
+an entry. It allocates traversal storage and owned output keys; unlike the prefix iterators, it
+is not allocation-free. Consume it directly when all entries do not need to be retained at once.
 
 `entries_str()` converts each reconstructed key to `String` and yields
 `Result<(String, i32), FromUtf8Error>`. Byte keys are never assumed to be valid UTF-8:
@@ -185,7 +220,12 @@ filesystem conveniences. Loading validates the allocator metadata and complete t
 returning a queryable `Cedar`. The persistence APIs and error type are absent when default features
 are disabled.
 
-`load_from_reader` limits peak owned and validation storage to `DEFAULT_LOAD_MEMORY_LIMIT` (512 MiB).
+The path helpers buffer file I/O internally. The stream APIs use the supplied reader or writer
+directly; wrap files or sockets in `BufReader`/`BufWriter` to avoid a system call for each small
+encoded field. If you supply a `BufWriter`, explicitly flush it and handle errors after saving.
+
+`load_from_reader` limits peak owned vector and validation storage to `DEFAULT_LOAD_MEMORY_LIMIT`
+(512 MiB). This ceiling excludes the caller's reader and fixed-size I/O buffers.
 Applications can choose another ceiling with `load_from_reader_with_limit`. The format preserves
 `ordered`, `max_trial`, entry state, and allocator state, so the loaded trie supports later
 `update` and `erase` operations. Files from the default and `reduced-trie` layouts are intentionally
@@ -204,7 +244,8 @@ and compatibility policy.
 
 `CedarError` implements `Debug`, `Display`, `Clone`, `Eq`, and `PartialEq`, plus
 `std::error::Error` when the `std` feature is enabled.
-Its variants are:
+It is non-exhaustive, so downstream `match` expressions need a wildcard arm. Its current variants
+are:
 
 - `EmptyKey`
 - `NulByte { position }`

@@ -10,11 +10,14 @@ This document explains cedarwood's internal mechanics in detail: how free space 
 
 2. **NInfo**: 256 default entries (all zeros -- no children, no siblings).
 
-3. **Blocks**: One `Block` with `num = 256` (all free), `e_head = 1`, and `reject = 257`.
+3. **Blocks**: One `Block` with `num = 256`, `e_head = 1`, and `reject = 257`. Block 0 contains
+   255 actual free slots plus the occupied root: its `num` convention counts the reserved root as
+   one virtual free slot. Thus its actual free count is `num - 1`; all other blocks use `num`.
 
 4. **Reject table**: `reject[i] = i + 1` for i in 0..=256. This initializes the global pruning heuristic.
 
-5. **Block lists**: `blocks_head_open = 0` (block 0 is the only open block). `blocks_head_closed = 0` and `blocks_head_full = 0` (both empty -- the head value 0 is overloaded since block 0 is special).
+5. **Block lists**: All three list heads are `0`, meaning empty. Block 0 never belongs to a category
+   list. Root transitions can claim its slots directly; allocation searches use non-root blocks.
 
 ## Free-List Structure Within a Block
 
@@ -25,29 +28,39 @@ Free node at index e:
     base_ = -(previous free node index)
     check = -(next free node index)
 
-Active node at index e:
-    base_ >= 0   (base value for child transitions)
+Occupied non-root node at index e:
     check >= 0   (parent node index)
+    base_        (branch base, stored value, or layout-specific sentinel)
 ```
 
-The block's `e_head` points to the first free node. To enumerate free nodes, follow the `check` chain (negating to get the actual index) until you loop back to `e_head`.
+When a block has free slots, its `e_head` points to one of them. To enumerate free nodes, follow the
+`check` chain (negating to get the actual index) until you loop back to `e_head`. A block with no
+actual free slots has no valid free-list head, even though block 0 still reports `num = 1`.
 
 ### Allocating a free node (`pop_e_node`)
 
 When a node is needed:
 
 1. Determine the target index `e` (either from `find_place`/`find_places`, or directly from `base XOR label`).
-2. Remove `e` from its block's free list by linking its predecessor to its successor.
-3. Decrement the block's `num`. If `num` drops to 0, transfer the block from Closed to Full. If `num` drops to 1 (and `trial < max_trial`), transfer from Open to Closed.
-4. Initialize the node: set `base_` to `-1` (or `0` for terminal) and `check` to the parent.
-5. If this is the first child (`base < 0`), set the parent's `base_` to `e XOR label`.
+2. If other free slots remain, remove `e` by linking its predecessor to its successor and advance
+   `e_head` if needed. For the final actual free slot, no links remain to repair.
+3. Decrement the block's `num`. Non-root blocks move from Closed to Full at `num = 0`, or from Open
+   to Closed at `num = 1` when they have not already exhausted `max_trial`. Removing the final
+   actual free slot leaves no free-list links to repair; that happens at `num = 1` in block 0.
+4. Initialize the node: default layout sets `base_` to `-1` (or `0` for a terminal); reduced layout
+   uses `CEDAR_VALUE_LIMIT`. Set `check` to the parent.
+5. If this is the first child (`base < 0`), set the parent's logical base to `e XOR label`.
+   Store that value directly in `base_` for the default layout, or as `-base - 1` for reduced-trie.
 
 ### Freeing a node (`push_e_node`)
 
 When a node is deleted:
 
-1. Increment the block's `num`. If `num` goes from 0 to 1, transfer the block from Full to Closed. If `num` goes from 1 to 2 (or `trial == max_trial`), transfer from Closed to Open.
-2. Insert the node back into the block's free list, immediately after `e_head`.
+1. Increment the block's `num`. For non-root blocks, transfer Full to Closed when `num` goes from
+   0 to 1, or Closed to Open when it goes from 1 to 2 (or `trial == max_trial`).
+2. If this is the first actual free slot, create a singleton cyclic free list. This includes
+   block 0 transitioning from `num = 1` to `num = 2`. Otherwise insert the node immediately after
+   `e_head`. Never follow a stale head left over from an exhausted free list.
 3. Update the `reject` heuristic if needed.
 4. Clear the node's `NInfo`.
 
@@ -55,20 +68,23 @@ When a node is deleted:
 
 ### The Three Block Lists
 
-Blocks are organized into three cyclic doubly-linked lists based on their free slot count:
+Non-root blocks are organized into three cyclic doubly-linked lists based on their free slot count
+and placement trial count:
 
 ```
 blocks_head_open ──→ [block A] ⇄ [block B] ⇄ [block C] ──→ (back to A)
                      num > 1     num > 1     num > 1
 
 blocks_head_closed ─→ [block D] ⇄ [block E] ──→ (back to D)
-                      num == 1    num == 1
+                      num == 1    trial == max_trial, num > 1
 
 blocks_head_full ───→ [block F] ──→ (back to F)
                       num == 0
 ```
 
-A head value of `0` means the list is empty (except for block 0, which is special-cased). The `prev` and `next` fields in each `Block` struct maintain the doubly-linked list.
+A head value of `0` means the list is empty. Block 0 is excluded from all three lists. The `prev`
+and `next` fields in each non-root `Block` maintain the doubly-linked list. Open blocks must also
+have `trial < max_trial`; a demoted Closed block may have many free slots.
 
 ### Block Transfer
 
@@ -79,7 +95,7 @@ When a block's `num` changes, it may need to move between lists:
 | Allocation | num: 2 → 1 | Open | Closed |
 | Allocation | num: 1 → 0 | Closed | Full |
 | Deletion | num: 0 → 1 | Full | Closed |
-| Deletion | num: 1 → 2 | Closed | Open |
+| Deletion | num: 1 → 2, or a demoted block gains a slot | Closed | Open |
 | Max trial reached | trial == max_trial | Open | Closed |
 
 The `transfer_block` function handles this by calling `pop_block` (remove from source list) then `push_block` (insert at head of destination list).
@@ -123,7 +139,7 @@ base_p = base[from_p]
 
 ### Step 3: Collect Children (`set_child`)
 
-`set_child` walks the sibling chain starting from the first child, collecting all labels into a `SmallVec<[u8; 256]>`. If relocating the new node, the new label is also included in the list. The list is kept in sorted order (when `ordered` is true) to maintain the invariant needed by `common_prefix_predict`.
+`set_child` walks the sibling chain starting from the first child, collecting all labels into a `SmallVec<[u8; 256]>`. If relocating the new node, the new label is also included in the list. When `ordered` is true, the list stays sorted so `common_prefix_predict` returns results in byte-lexicographic order. Prediction also works with unordered siblings.
 
 ### Step 4: Find Free Space
 
@@ -142,18 +158,20 @@ For each child in the list:
 
 ## The Reject Heuristic
 
-The `reject` array is a global optimization that records, for each possible `num` value (0-256), the minimum number of children that failed to fit in any block with that many free slots. This lets `find_places` skip blocks early:
+The `reject` array records placement thresholds by free-slot count (0-256). Each block also has
+its own threshold. `find_places` searches only when the requested sibling count is below the
+block threshold and there are enough free slots:
 
 ```rust
 if self.blocks[idx].num >= nc && nc < self.blocks[idx].reject {
     // Worth searching this block
 } else {
-    // Skip: either not enough free slots, or previous experience
-    // says nc children won't fit in a block with this many free slots
+    // Skip: either not enough free slots, or the heuristic avoids this probe.
 }
 ```
 
-The heuristic is updated whenever a `find_places` search fails on a block:
+The heuristic is updated whenever `find_places` leaves a block without a placement, including
+blocks skipped by the condition above:
 
 ```rust
 self.blocks[idx].reject = nc;
@@ -162,7 +180,9 @@ if self.blocks[idx].reject < self.reject[self.blocks[idx].num] {
 }
 ```
 
-This is a form of memoized pruning: once we learn that 5 children can't fit in a block with 10 free slots, we propagate that knowledge globally so that no future search even attempts it.
+Sibling labels determine whether their XOR positions fit; their count alone does not prove a
+placement impossible. This is a speed/space heuristic, not a memoized correctness fact. Deletion
+uses the global threshold to relax the block's rejection threshold, and can reopen demoted blocks.
 
 ## Sibling Chain Management
 

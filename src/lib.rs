@@ -1982,7 +1982,9 @@ impl Cedar {
         self.common_prefix_iter_bytes(key).collect()
     }
 
-    /// Iterates over stored UTF-8 keys that start with `key`.
+    /// Iterates over stored keys that start with the UTF-8 prefix `key`.
+    ///
+    /// Keys inserted through byte APIs are included, even if their suffix is not valid UTF-8.
     pub fn common_prefix_predict_iter<'a>(&'a self, key: &'a str) -> PrefixPredictIter<'a> {
         self.common_prefix_predict_iter_bytes(key.as_bytes())
     }
@@ -2001,7 +2003,9 @@ impl Cedar {
         }
     }
 
-    /// Collects stored UTF-8 keys that start with `key`.
+    /// Collects stored keys that start with the UTF-8 prefix `key`.
+    ///
+    /// Keys inserted through byte APIs are included, even if their suffix is not valid UTF-8.
     pub fn common_prefix_predict(&self, key: &str) -> Vec<(i32, usize)> {
         self.common_prefix_predict_bytes(key.as_bytes())
     }
