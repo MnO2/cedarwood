@@ -1058,6 +1058,10 @@ impl Cedar {
     ///
     /// The representation preserves insertion configuration and allocator state, so a loaded trie
     /// remains mutable. Rust struct memory is never written directly.
+    ///
+    /// Fields are written in small chunks. Wrap file or network writers in [`std::io::BufWriter`]
+    /// for efficient I/O. This method does not flush the writer; callers should flush explicitly
+    /// to observe any buffered write failures.
     #[cfg(feature = "std")]
     pub fn save_to_writer(&self, mut writer: impl std::io::Write) -> Result<(), CedarPersistenceError> {
         use persistence::v1;
@@ -1118,26 +1122,37 @@ impl Cedar {
         Ok(())
     }
 
-    /// Saves this trie to a file by truncating or creating it.
+    /// Saves this trie to a file by truncating or creating it, using buffered I/O.
     ///
     /// This helper is not atomic: an I/O failure can leave a partial file. For atomic replacement,
     /// write with [`Cedar::save_to_writer`] to an application-managed temporary file, flush and
     /// sync it as required, then rename it according to the platform's durability needs.
     #[cfg(feature = "std")]
     pub fn save_to_path(&self, path: impl AsRef<std::path::Path>) -> Result<(), CedarPersistenceError> {
-        self.save_to_writer(std::fs::File::create(path)?)
+        use std::io::{BufWriter, Write};
+
+        let mut writer = BufWriter::new(std::fs::File::create(path)?);
+        self.save_to_writer(&mut writer)?;
+        writer.flush()?;
+        Ok(())
     }
 
     /// Loads and validates a trie using [`DEFAULT_LOAD_MEMORY_LIMIT`].
     ///
     /// Validation completes before the `Cedar` is returned, so malformed input can never reach
     /// the unchecked query paths through this API.
+    /// Wrap file or network readers in [`std::io::BufReader`] to avoid a separate I/O operation
+    /// for each encoded field. The reader must reach EOF after the representation; trailing bytes
+    /// are rejected.
     #[cfg(feature = "std")]
     pub fn load_from_reader(reader: impl std::io::Read) -> Result<Self, CedarPersistenceError> {
         Self::load_from_reader_with_limit(reader, DEFAULT_LOAD_MEMORY_LIMIT)
     }
 
     /// Loads and validates a trie while limiting total reserved vector storage.
+    ///
+    /// The ceiling covers decoded state, live trie vectors, and validation scratch vectors.
+    /// It excludes the reader's own storage and fixed-size I/O buffers.
     #[cfg(feature = "std")]
     pub fn load_from_reader_with_limit(
         mut reader: impl std::io::Read,
@@ -1148,10 +1163,10 @@ impl Cedar {
         Self::from_persistence_v1(decoded)
     }
 
-    /// Loads and validates a trie from a file using [`DEFAULT_LOAD_MEMORY_LIMIT`].
+    /// Loads and validates a trie from a file using buffered I/O and [`DEFAULT_LOAD_MEMORY_LIMIT`].
     #[cfg(feature = "std")]
     pub fn load_from_path(path: impl AsRef<std::path::Path>) -> Result<Self, CedarPersistenceError> {
-        Self::load_from_reader(std::fs::File::open(path)?)
+        Self::load_from_reader(std::io::BufReader::new(std::fs::File::open(path)?))
     }
 
     #[cfg(feature = "std")]

@@ -5,6 +5,13 @@ Cedarwood 0.6 can persist a mutable trie with `Cedar::save_to_writer` and restor
 Persistence failures use `CedarPersistenceError`, separately from `CedarError` because I/O errors
 are neither cloneable nor comparable.
 
+Path helpers use buffered file I/O; saving also flushes the buffer and reports flush errors before
+returning success. Stream helpers operate directly on the reader/writer supplied by the caller.
+When passing a file or socket, wrap it in `BufReader`/`BufWriter` so decoding/encoding the small
+integer fields does not require a system call per field. A caller-owned buffered writer must be
+explicitly flushed after `save_to_writer`; flush and filesystem durability (`sync_all`) are separate
+operations.
+
 ```rust
 use cedarwood::Cedar;
 
@@ -70,6 +77,8 @@ attacker-sized reservation uses `try_reserve_exact`; allocation failure is retur
 `CedarPersistenceError::AllocationFailed` rather than panicking.
 `load_from_reader` uses `DEFAULT_LOAD_MEMORY_LIMIT` (512 MiB);
 `load_from_reader_with_limit` accepts an application-specific ceiling.
+The ceiling accounts for vector allocations; caller-owned reader state and fixed-size I/O buffers
+are outside it.
 
 After decoding, cedarwood validates the root and layout sentinels, active and inactive storage,
 per-block free counts, every cyclic free-list link, all three block-category lists, heuristic
