@@ -719,10 +719,13 @@ mod persistence {
             }
 
             let mut trailing = [0; 1];
-            match reader.read(&mut trailing) {
-                Ok(0) => {}
-                Ok(_) => return Err(CedarPersistenceError::TrailingData),
-                Err(error) => return Err(CedarPersistenceError::Io(error)),
+            loop {
+                match reader.read(&mut trailing) {
+                    Ok(0) => break,
+                    Ok(_) => return Err(CedarPersistenceError::TrailingData),
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(error) => return Err(CedarPersistenceError::Io(error)),
+                }
             }
             Ok(Decoded {
                 header,
@@ -1439,38 +1442,24 @@ impl Cedar {
                 continue;
             }
 
+            // Empty leaf sentinels occur only during insertion. They cannot be exposed to query
+            // paths: default-layout traversal indexes their negative base, while reduced-layout
+            // traversal would report the reserved sentinel as a stored value.
             #[cfg(feature = "reduced-trie")]
-            let structural = if node.base_ < 0 {
-                true
-            } else if (MIN_VALUE..=MAX_VALUE).contains(&node.base_) {
+            if node.base_ >= 0 {
+                if !(MIN_VALUE..=MAX_VALUE).contains(&node.base_) {
+                    return Err(Self::corrupt("trie", index, "invalid reduced-layout sentinel"));
+                }
                 if self.n_infos[index].child != 0 {
                     return Err(Self::corrupt("trie", index, "inline value node has children"));
                 }
                 entry_count += 1;
-                false
-            } else if node.base_ == CEDAR_VALUE_LIMIT {
-                if self.n_infos[index].child != 0 {
-                    return Err(Self::corrupt("trie", index, "empty leaf has children"));
-                }
-                false
-            } else {
-                return Err(Self::corrupt("trie", index, "invalid reduced-layout sentinel"));
-            };
+                continue;
+            }
 
             #[cfg(not(feature = "reduced-trie"))]
-            let structural = if node.base_ == -1 {
-                if self.n_infos[index].child != 0 {
-                    return Err(Self::corrupt("trie", index, "leaf has children"));
-                }
-                false
-            } else if node.base_ >= 0 {
-                true
-            } else {
+            if node.base_ < 0 {
                 return Err(Self::corrupt("trie", index, "invalid default-layout base"));
-            };
-
-            if !structural {
-                continue;
             }
             let base = usize::try_from(node.base())
                 .ok()
