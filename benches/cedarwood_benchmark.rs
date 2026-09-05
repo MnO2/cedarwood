@@ -1,7 +1,7 @@
 mod support;
 
 use cedarwood::Cedar;
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use support::{
     entries, evenly_sampled_keys, exact_misses, load_dictionary, tokenizer_text, CHURN_WORKING_SET_SIZE,
     LOOKUP_SAMPLE_SIZE, SCAN_TEXT_MIN_BYTES,
@@ -131,6 +131,36 @@ fn benchmark_churn(c: &mut Criterion, working_entries: &[(&str, i32)]) {
     group.finish();
 }
 
+fn benchmark_entries(c: &mut Criterion, cedar: &Cedar) {
+    let mut group = c.benchmark_group("entries");
+    group.throughput(Throughput::Elements(cedar.len() as u64));
+    group.bench_function("dictionary", |b| {
+        b.iter(|| {
+            let checksum = black_box(cedar).entries().fold(0_u64, |sum, (key, value)| {
+                sum.wrapping_add(black_box(key).len() as u64).wrapping_add(value as u64)
+            });
+            black_box(checksum)
+        });
+    });
+
+    // A single long branch detects repeated prefix copying that a shallow dictionary can hide.
+    for length in [8 * 1_024, 32 * 1_024] {
+        let key = vec![b'a'; length];
+        let mut deep = Cedar::new();
+        deep.update_bytes(&key, 1).unwrap();
+        assert_eq!(deep.entries().next(), Some((key, 1)));
+        group.throughput(Throughput::Bytes(length as u64));
+        group.bench_with_input(BenchmarkId::new("single_deep_key", length), &deep, |b, trie| {
+            b.iter(|| {
+                let mut entries = black_box(trie).entries();
+                black_box(entries.next().expect("the deep key must be present"));
+                black_box(entries.next());
+            });
+        });
+    }
+    group.finish();
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     let corpus = load_dictionary();
     let corpus_entries = entries(&corpus);
@@ -148,6 +178,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     benchmark_exact_misses(c, &cedar, &miss_keys);
     benchmark_tokenizer_scan(c, &cedar, &scan_text);
     benchmark_churn(c, &churn_entries);
+    benchmark_entries(c, &cedar);
 }
 
 criterion_group!(benches, criterion_benchmark);

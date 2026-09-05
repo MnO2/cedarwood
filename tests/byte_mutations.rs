@@ -134,3 +134,31 @@ fn byte_mutations_match_reference_after_bulk_build_and_relocations() {
         }
     }
 }
+
+#[test]
+fn entries_restore_shared_prefixes_when_backtracking_from_deep_branches() {
+    let depth = if cfg!(miri) { 256 } else { 32 * 1024 };
+    let mut expected = BTreeMap::new();
+    for length in [1, 2, 64, depth / 2, depth] {
+        let prefix = vec![b'a'; length];
+        expected.insert(prefix.clone(), length as i32);
+        for label in [1, 127, 255] {
+            let mut key = prefix.clone();
+            key.push(label);
+            expected.insert(key, i32::from(label));
+        }
+    }
+    for ordered in [false, true] {
+        let mut cedar = Cedar::builder().ordered(ordered).build();
+        for (key, value) in expected.iter().rev() {
+            cedar.update_bytes(key, *value).unwrap();
+        }
+        check_contents(&cedar, &expected);
+        // Internal terminals must not prevent traversal to deeper branches or later siblings.
+        let erased = vec![b'a'; depth / 2];
+        assert!(cedar.erase_bytes(&erased));
+        let mut after_erase = expected.clone();
+        after_erase.remove(&erased);
+        check_contents(&cedar, &after_erase);
+    }
+}

@@ -863,7 +863,9 @@ impl<'a> Iterator for PrefixPredictIter<'a> {
 /// Iterator over every stored byte key and value.
 pub struct Entries<'a> {
     cedar: &'a Cedar,
-    stack: Vec<(usize, Vec<u8>)>,
+    // (node, parent key length, incoming label). Pending siblings share the current key's prefix.
+    stack: Vec<(usize, usize, u8)>,
+    key: Vec<u8>,
     remaining: usize,
 }
 
@@ -875,19 +877,23 @@ impl Iterator for Entries<'_> {
     }
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((index, key)) = self.stack.pop() {
+        while let Some((index, parent_length, incoming_label)) = self.stack.pop() {
+            self.key.truncate(parent_length);
+            if index != 0 {
+                self.key.push(incoming_label);
+            }
             let base = self.cedar.array[index].base();
             let children = self.cedar.child_labels(index);
             for label in children.into_iter().rev() {
                 let child = (base ^ i32::from(label)) as usize;
-                let mut child_key = key.clone();
-                child_key.push(label);
-                self.stack.push((child, child_key));
+                self.stack.push((child, self.key.len(), label));
             }
 
             if let Some(value) = self.cedar.value_at_node(index) {
                 self.remaining -= 1;
-                return Some((key, value));
+                // Only copy keys that are actually returned. Cloning at every intermediate node
+                // makes enumerating even one long key quadratic in its length.
+                return Some((self.key.clone(), value));
             }
         }
         debug_assert_eq!(self.remaining, 0);
@@ -1722,15 +1728,14 @@ impl Cedar {
     }
 
     fn update_validated(&mut self, key: &[u8], value: i32) {
-        let is_new = self.exact_match_search_bytes(key).is_none();
-        self.update_(key, value, 0, 0);
-        if is_new {
+        if self.update_(key, value, 0, 0) {
             self.entries += 1;
         }
     }
 
-    // Internal update interface for a validated byte key and cursor.
-    fn update_(&mut self, key: &[u8], value: i32, mut from: usize, mut pos: usize) -> i32 {
+    // Internal update interface for a validated byte key and cursor. Returns whether a new
+    // entry was inserted, so counting entries does not require a separate exact lookup.
+    fn update_(&mut self, key: &[u8], value: i32, mut from: usize, mut pos: usize) -> bool {
         while pos < key.len() {
             #[cfg(feature = "reduced-trie")]
             {
@@ -1744,6 +1749,10 @@ impl Cedar {
             from = self.follow(from, key[pos]) as usize;
             pos += 1;
         }
+
+        // Check before creating the terminal: a newly allocated slot carries a temporary
+        // sentinel, while existing prefix keys may store their value in a separate terminal.
+        let is_new = self.value_at_node(from).is_none();
 
         #[cfg(feature = "reduced-trie")]
         let to = if self.array[from].base_ >= 0 {
@@ -1763,7 +1772,7 @@ impl Cedar {
         let to = self.follow(from, 0);
 
         self.array[to as usize].base_ = value;
-        self.array[to as usize].base_
+        is_new
     }
 
     // To move in the trie by following the `label`, and insert the node if the node is not there,
@@ -1994,7 +2003,8 @@ impl Cedar {
     pub fn entries(&self) -> Entries<'_> {
         Entries {
             cedar: self,
-            stack: vec![(0, Vec::new())],
+            stack: vec![(0, 0, 0)],
+            key: Vec::new(),
             remaining: self.len(),
         }
     }
