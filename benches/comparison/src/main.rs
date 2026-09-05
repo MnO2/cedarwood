@@ -632,6 +632,10 @@ fn main() {
         eprintln!("usage: cargo run --release --locked");
         std::process::exit(2);
     }
+    if cfg!(debug_assertions) {
+        eprintln!("comparison measurements require a release build; run `cargo run --release --locked`");
+        std::process::exit(2);
+    }
 
     let data = Dataset::load();
     let provenance = CurrentProvenance::collect();
@@ -723,7 +727,7 @@ fn main() {
 mod tests {
     use super::*;
 
-    const CURRENT_RAW: &str = include_str!("../results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt");
+    const CURRENT_RAW: &str = include_str!("../results/2026-09-05-apple-m4-pro-unreleased.txt");
 
     #[test]
     fn current_raw_provenance_matches_benchmark_inputs() {

@@ -11,28 +11,33 @@ Run it from the repository root:
 (cd benches/comparison && cargo run --release --locked)
 ```
 
+Measurement mode rejects debug builds so they cannot emit timings labeled with the release
+profile. The README verification command below can run in debug mode.
+
 To preserve a new run, redirect the complete output to a dated file under `results/`, then update
 the root README only from that checked-in output. Do not compare results produced on different
 machines as though they were from one experiment.
 
-The currently published 0.6 table comes from
-[`results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt`](results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt).
-The original
-[`results/2026-07-11-apple-m4-pro.txt`](results/2026-07-11-apple-m4-pro.txt) remains checked in as
-the historical 0.5 baseline; do not mix rows from the two runs.
+The current README table measures the unreleased worktree, whose package version is still 0.6.0,
+and comes from
+[`results/2026-09-05-apple-m4-pro-unreleased.txt`](results/2026-09-05-apple-m4-pro-unreleased.txt).
+The earlier
+[`0.6 output`](results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt) and
+[`0.5 output`](results/2026-07-11-apple-m4-pro.txt) remain unchanged as historical evidence; do not
+mix rows from different runs.
 
 Verify mechanically that the raw file still describes the current 0.6 benchmark inputs and that
 the README table matches its CSV rows:
 
 ```bash
-(cd benches/comparison && cargo run --locked -- --verify-readme results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt ../../README.md)
+(cd benches/comparison && cargo run --locked -- --verify-readme results/2026-09-05-apple-m4-pro-unreleased.txt ../../README.md)
 ```
 
 Verification rejects a stale package version or layout, root `Cargo.toml`, cedarwood source,
 comparison `Cargo.toml`, comparison harness, shared workload support, comparison lockfile, dataset
 path, or dataset hash. It also requires the cedarwood CSV row version to match the version parsed
-from the root manifest. The command is intentionally aimed at the current 0.6 result; the preserved
-0.5 file records historical sources and is not expected to verify against the current worktree.
+from the root manifest. The command targets the current worktree result; the preserved historical
+files record older sources and are not expected to verify against the current worktree.
 
 ## Measurement contract
 

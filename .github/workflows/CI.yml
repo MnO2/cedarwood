@@ -24,6 +24,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo fmt --manifest-path test-support/Cargo.toml -- --check
       - run: cargo fmt --manifest-path fuzz/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path benches/comparison/Cargo.toml -- --check
 
   clippy:
     name: Clippy (${{ matrix.layout }})
@@ -65,8 +66,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --lib --locked ${{ matrix.args }}
-      - run: cargo test --test stateful_operations --locked ${{ matrix.args }}
+      - run: cargo test --lib --tests --locked ${{ matrix.args }}
+      - run: cargo test --doc --locked ${{ matrix.args }}
 
   platform:
     name: Test default (${{ matrix.os }})
@@ -78,7 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --lib --locked
+      - run: cargo test --lib --tests --locked
 
   docs:
     name: Rustdoc (${{ matrix.features }})
@@ -86,16 +87,30 @@ jobs:
     strategy:
       matrix:
         include:
-          - features: all features
-            args: "--all-features"
+          - features: default
+            args: ""
+          - features: reduced-trie
+            args: "--features reduced-trie"
           - features: no_std
             args: "--no-default-features"
+          - features: no_std + reduced-trie
+            args: "--no-default-features --features reduced-trie"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --no-deps --locked ${{ matrix.args }}
         env:
           RUSTDOCFLAGS: -D warnings
+      - name: Test published Markdown examples
+        shell: bash
+        run: |
+          cargo build --lib --locked ${{ matrix.args }}
+          for path in README.md docs/api-reference.md; do
+            rustdoc --test "$path" --edition=2021 --extern cedarwood=target/debug/libcedarwood.rlib -L dependency=target/debug/deps
+          done
+          if [[ '${{ matrix.args }}' != *--no-default-features* ]]; then
+            rustdoc --test docs/serialization.md --edition=2021 --extern cedarwood=target/debug/libcedarwood.rlib -L dependency=target/debug/deps
+          fi
 
   msrv:
     name: MSRV (${{ matrix.layout }})
@@ -177,9 +192,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Compile comparison harness
         run: cargo check --manifest-path benches/comparison/Cargo.toml --locked
+      - name: Test comparison provenance validation
+        run: cargo test --manifest-path benches/comparison/Cargo.toml --locked
       - name: Verify checked-in comparison table
         working-directory: benches/comparison
-        run: cargo run --locked -- --verify-readme results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt ../../README.md
+        run: cargo run --locked -- --verify-readme results/2026-09-05-apple-m4-pro-unreleased.txt ../../README.md
       - name: Inspect and build package
         shell: bash
         run: |
