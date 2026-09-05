@@ -2245,7 +2245,8 @@ impl Cedar {
 
         self.blocks[idx as usize].num -= 1;
         // move the block at idx to the correct linked-list depending the free slots it still have.
-        if self.blocks[idx as usize].num == 0 {
+        // Block zero's count includes the reserved root slot, which is never on its free list.
+        if self.blocks[idx as usize].num == i16::from(idx == 0) {
             if idx != 0 {
                 self.transfer_block(idx, BlockType::Closed, BlockType::Full, self.blocks_head_full == 0);
             }
@@ -2292,7 +2293,9 @@ impl Cedar {
         let idx = e >> 8;
         self.blocks[idx as usize].num += 1;
 
-        if self.blocks[idx as usize].num == 1 {
+        // A physically full root block has num == 1 because the reserved root is counted. Its
+        // stale e_head refers to an occupied node, so create a fresh singleton free list here.
+        if self.blocks[idx as usize].num == 1 + i16::from(idx == 0) {
             self.blocks[idx as usize].e_head = e;
             self.array[e as usize] = Node { base_: -e, check: -e };
 
