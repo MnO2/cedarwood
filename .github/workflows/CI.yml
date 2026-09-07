@@ -196,7 +196,7 @@ jobs:
         run: cargo test --manifest-path benches/comparison/Cargo.toml --locked
       - name: Verify checked-in comparison table
         working-directory: benches/comparison
-        run: cargo run --locked -- --verify-readme results/2026-09-05-apple-m4-pro-unreleased.txt ../../README.md
+        run: cargo run --locked -- --verify-readme results/2026-09-07-apple-m4-pro-cedarwood-0.6.1.txt ../../README.md
       - name: Inspect and build package
         shell: bash
         run: |

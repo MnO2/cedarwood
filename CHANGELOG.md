@@ -2,7 +2,7 @@
 
 All notable changes to cedarwood are documented here. The project follows semantic versioning.
 
-## Unreleased
+## [0.6.1] - 2026-09-07
 
 ### Fixed
 
@@ -88,4 +88,5 @@ safe persistence, and replaces synthetic performance claims with reproducible me
 6. Enable the default `std` feature when using persistence. Embedded users can disable default
    features and provide an allocator.
 
+[0.6.1]: https://github.com/MnO2/cedarwood/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/MnO2/cedarwood/compare/0.5.0...v0.6.0

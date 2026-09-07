@@ -151,20 +151,20 @@ regressions. A legacy C++ cedar benchmark is retained in
 
 ### Implementation comparison
 
-These results are comparative, not universal. They are from one run on 2026-09-05 UTC using an
+These results are comparative, not universal. They are from one run on 2026-09-07 UTC using an
 Apple M4 Pro, macOS 26.1, and rustc 1.97.0. Lower is better for construction time and owned heap;
-higher is better for throughput. The cedarwood row measures this **unreleased worktree**, whose
-package version remains 0.6.0, including the fixes listed in the changelog. Historical 0.5 and 0.6
-runs remain checked in separately and are not mixed into this table.
+higher is better for throughput. The cedarwood row measures the 0.6.1 release source. Historical
+0.5, 0.6.0, and pre-release worktree runs remain checked in separately and are not mixed into this
+table.
 
 | Implementation | Mutable | Build (ms) | Exact hit (M/s) | Exact miss (M/s) | Prefix scan (MiB/s) | Owned heap (MiB) |
 |---|:---:|---:|---:|---:|---:|---:|
-| cedarwood 0.6.0 | yes | 31.809 | 54.970 | 55.519 | 243.65 | 20.157 |
-| fst 0.4.7 | no | 54.637 | 9.307 | 9.236 | unsupported | 5.000 |
-| daachorse 3.0.2 | no | 184.088 | 38.291 | 18.645 | 313.04 | 19.729 |
-| crawdad 0.4.0 | no | 1190.112 | 92.941 | 103.057 | 329.32 | 8.250 |
-| yada 0.7.0 | no | 336.101 | 60.399 | 46.090 | 342.23 | 5.908 |
-| `std::collections::HashMap` | yes | 7.237 | 60.035 | 97.878 | unsupported | 19.407 |
+| cedarwood 0.6.1 | yes | 29.475 | 60.009 | 59.296 | 247.95 | 20.157 |
+| fst 0.4.7 | no | 48.838 | 10.618 | 10.501 | unsupported | 5.000 |
+| daachorse 3.0.2 | no | 163.870 | 44.469 | 20.139 | 363.49 | 19.729 |
+| crawdad 0.4.0 | no | 1121.697 | 92.717 | 103.840 | 338.52 | 8.250 |
+| yada 0.7.0 | no | 302.500 | 64.387 | 48.844 | 392.46 | 5.908 |
+| `std::collections::HashMap` | yes | 6.495 | 64.145 | 104.901 | unsupported | 19.407 |
 | C++ cedar | yes | not measured | not measured | not measured | not measured | not measured |
 
 The static implementations do not provide cedarwood's incremental update/erase capability.
@@ -174,9 +174,11 @@ operation and are marked unsupported. C++ cedar was not measured because the sha
 is not implemented and `cedarpp.h` was not installed locally.
 
 Every measured number is preserved in the
-[current worktree raw output](benches/comparison/results/2026-09-05-apple-m4-pro-unreleased.txt).
-The historical [0.6 raw output](benches/comparison/results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt)
-and [0.5 raw output](benches/comparison/results/2026-07-11-apple-m4-pro.txt) are retained unchanged.
+[0.6.1 raw output](benches/comparison/results/2026-09-07-apple-m4-pro-cedarwood-0.6.1.txt).
+The historical [0.6.0 raw output](benches/comparison/results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt),
+[0.5 raw output](benches/comparison/results/2026-07-11-apple-m4-pro.txt), and
+[2026-09-05 pre-release worktree output](benches/comparison/results/2026-09-05-apple-m4-pro-unreleased.txt)
+are retained unchanged.
 See the
 [comparison harness documentation](benches/comparison/README.md) for the exact workload, memory
 method, pinned dependencies, and single-command reproduction instructions.

@@ -727,7 +727,7 @@ fn main() {
 mod tests {
     use super::*;
 
-    const CURRENT_RAW: &str = include_str!("../results/2026-09-05-apple-m4-pro-unreleased.txt");
+    const CURRENT_RAW: &str = include_str!("../results/2026-09-07-apple-m4-pro-cedarwood-0.6.1.txt");
 
     #[test]
     fn current_raw_provenance_matches_benchmark_inputs() {

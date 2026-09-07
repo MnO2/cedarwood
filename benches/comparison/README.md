@@ -18,19 +18,19 @@ To preserve a new run, redirect the complete output to a dated file under `resul
 the root README only from that checked-in output. Do not compare results produced on different
 machines as though they were from one experiment.
 
-The current README table measures the unreleased worktree, whose package version is still 0.6.0,
-and comes from
-[`results/2026-09-05-apple-m4-pro-unreleased.txt`](results/2026-09-05-apple-m4-pro-unreleased.txt).
+The current README table measures the 0.6.1 release source and comes from
+[`results/2026-09-07-apple-m4-pro-cedarwood-0.6.1.txt`](results/2026-09-07-apple-m4-pro-cedarwood-0.6.1.txt).
 The earlier
-[`0.6 output`](results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt) and
-[`0.5 output`](results/2026-07-11-apple-m4-pro.txt) remain unchanged as historical evidence; do not
-mix rows from different runs.
+[`0.6.0 output`](results/2026-07-11-apple-m4-pro-cedarwood-0.6.0.txt),
+[`0.5 output`](results/2026-07-11-apple-m4-pro.txt), and
+[`2026-09-05 pre-release worktree output`](results/2026-09-05-apple-m4-pro-unreleased.txt) remain
+unchanged as historical evidence; do not mix rows from different runs.
 
 Verify mechanically that the raw file still describes the current 0.6 benchmark inputs and that
 the README table matches its CSV rows:
 
 ```bash
-(cd benches/comparison && cargo run --locked -- --verify-readme results/2026-09-05-apple-m4-pro-unreleased.txt ../../README.md)
+(cd benches/comparison && cargo run --locked -- --verify-readme results/2026-09-07-apple-m4-pro-cedarwood-0.6.1.txt ../../README.md)
 ```
 
 Verification rejects a stale package version or layout, root `Cargo.toml`, cedarwood source,

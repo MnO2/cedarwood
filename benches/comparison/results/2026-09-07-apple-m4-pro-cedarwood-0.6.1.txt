@@ -1,0 +1,43 @@
+cedarwood comparison raw output
+date_utc=2026-09-07
+os=macOS 26.1; build 25B78; arch arm64
+cpu=Apple M4 Pro
+rustc=rustc 1.97.0 (2d8144b78 2026-07-07); binary: rustc; commit-hash: 2d8144b7880597b6e6d3dfd63a9a9efae3f533d3; commit-date: 2026-07-07; host: aarch64-apple-darwin; release: 1.97.0; LLVM version: 22.1.6
+cargo=cargo 1.97.0 (c980f4866 2026-06-30)
+profile=release opt-level=3 lto=thin codegen-units=1 debug=false incremental=false
+cedarwood_revision=2e01e60dbacc86958a4ff043e5d556ea5caed86e
+cedarwood_worktree=dirty
+cedarwood_version=0.6.1
+cedarwood_layout=default
+cedarwood_manifest_sha256=81cefb6c322120407ff40af0143b751827c50a60ba8cf8a53ef23b779a651225
+cedarwood_source_sha256=5f3c9ab37acfdc39bbec388e0d412fb1004f512d71521cc3202225c1e746af15
+harness_source_sha256=07072c7781e12e060a60bdd564bf778211ecea445891649c176d3f3ab856789c
+shared_support_sha256=c9a5e9c301416fd775af9a815a54b7c42e2d3bc0799cba4eadf735b878dbe92b
+comparison_manifest_sha256=0a8a9352ab975de1cc954a7404b5f7c6b26faed3f40d8c0a70352e7818688a04
+comparison_lock_sha256=8fb1b9a34d4c6440452df6ad0388e12cebb495bdcf0a57e0eb872881abfcc845
+dataset=benches/macro-benchmark/dict.txt
+dataset_sha256=139519822fe8ab9e10d9d07e68ea0451045380aedaf54ecc51e2a28c6b42a13f
+unique_keys=349045
+hit_sample=4096
+miss_sample=4096
+scan_bytes=65537
+scan_character_boundaries=21847
+build_statistic=median of 3 fresh constructions
+exact_statistic=median of 7 samples x 1024 rounds
+scan_statistic=median of 5 samples x 32 rounds
+memory_method=net live heap bytes requested from System by the constructed data structure; corpus and benchmark inputs excluded
+cpp_cedar=not measured (shared-schema C++ adapter is not implemented and cedarpp.h is unavailable)
+
+implementation,mutable,build_ms,exact_hit_mops,exact_miss_mops,prefix_scan_mib_s,owned_heap_mib,exact_method,scan_method,verification
+cedarwood 0.6.1,true,29.475,60.009,59.296,247.95,20.157,native exact lookup,common-prefix search at each UTF-8 character boundary,passed
+fst 0.4.7,false,48.838,10.618,10.501,unsupported,5.000,native exact lookup,unsupported,passed
+daachorse 3.0.2,false,163.870,44.469,20.139,363.49,19.729,anchored full-span Aho-Corasick match,native overlapping Aho-Corasick scan,passed
+crawdad 0.4.0,false,1121.697,92.717,103.840,338.52,8.250,native exact lookup,common-prefix search at each UTF-8 character boundary,passed
+yada 0.7.0,false,302.500,64.387,48.844,392.46,5.908,native exact lookup,common-prefix search at each UTF-8 character boundary,passed
+std HashMap,true,6.495,64.145,104.901,unsupported,19.407,native exact lookup,unsupported,passed
+
+verification_exact_hit_checksum=714667590
+verification_exact_misses=4096
+verification_scan_matches=26339
+verification_scan_value_checksum=4389337292
+allocator_word_size=64
